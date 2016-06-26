@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+
+# go_to_global_target
+#
+# Python script for dynamic mavros waypoint commands in flight
+# 
+# @author   Syler Wagner    <syler@mit.edu>
+#
+# @date     2016-06-22      creation
+
+from __future__ import division
+import rospy
+from mavpro.srv import GoToGlobalPositionTarget
+from mavros_msgs.msg import GlobalPositionTarget   
+from sensor_msgs.msg import NavSatFix
+from std_msgs.msg import Float64
+
+lat_lon_tolerance = 1 / 111079.08273819795 # TODO: maybe use actual math instead of fake math
+alt_tolerance = 1
+
+def are_we_there_yet(req):
+	print " [ ? ] Are we there yet?"
+	
+	lat_err = abs(lat - req.target.latitude)
+	lon_err = abs(lon - req.target.longitude)
+	alt_err = abs(alt - req.target.altitude)
+	
+	print " [ > ] Lat error: %4.8f   Lon error: %4.8f   Alt error: %4.1f " % (lat_err, lon_err, alt_err)
+	
+	if (lat_err < lat_lon_tolerance and \
+		lon_err < lat_lon_tolerance and \
+	 	alt_err < alt_tolerance):
+		return True
+	else:
+		return False
+
+def handle_go_to_global_target(req):
+    
+    target_reached = False
+
+    # GlobalPositionTarget message publisher
+    setpoint_pub = rospy.Publisher('/mavros/setpoint_raw/global', GlobalPositionTarget, queue_size=5)
+
+    # publish GlobalTargetRequest message to setpoint_raw/global topic
+    setpoint_pub.publish(req.target)
+
+    # keep checking if target is reached
+    while not target_reached:
+    	rospy.sleep(1)
+    	target_reached = are_we_there_yet(req)
+
+    print "Yay!"
+
+    return True
+
+    # return GoToGlobalPositionTargetResponse(True)
+
+# GPS fix message callback method
+def fix_callback(fix_msg):
+    global lat, lon
+    lat = fix_msg.latitude
+    lon = fix_msg.longitude
+
+# relative altitude message callback method
+def rel_alt_callback(rel_alt_msg):
+    global alt
+    alt = rel_alt_msg.data
+
+def go_to_global_target_server():
+    rospy.init_node('go_to_global_target_server')
+
+    # declare service
+    s = rospy.Service('go_to_global_target', GoToGlobalPositionTarget, handle_go_to_global_target)
+    
+    # subscribe to topics publishing current position
+    rospy.Subscriber('/mavros/global_position/raw/fix', NavSatFix, fix_callback)
+    rospy.Subscriber('/mavros/global_position/rel_alt', Float64, rel_alt_callback)
+
+    print "[   ] Ready to go to global target."
+    rospy.spin()
+
+if __name__ == "__main__":
+    go_to_global_target_server()

@@ -1,0 +1,21 @@
+header: 
+  seq: 0
+  stamp: 
+    secs: 0
+    nsecs: 0
+  frame_id: fcu
+coordinate_frame: 5
+type_mask: 4088
+latitude: 42.2941229
+longitude: -71.2641247
+altitude: 5.0
+velocity: 
+  x: 0.0
+  y: 0.0
+  z: 0.0
+acceleration_or_force: 
+  x: 0.0
+  y: 0.0
+  z: 0.0
+yaw: 0.0
+yaw_rate: 0.0

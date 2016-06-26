@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="log_output" default="screen" />
+
+	<!-- flight Pixhawk URL -->
+    <arg name="target" doc="global target .yaml file" />
+
+    <!-- go_to_global_target_client node -->
+	<node pkg="mavpro" type="go_to_global_target_client" name="go_to_global_target_client" output="screen">
+		<rosparam param="target" file="$(find mavpro)/config/$(arg target)" command="load"/>
+	</node>
+
+</launch>
