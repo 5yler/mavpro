@@ -29,10 +29,10 @@ def request_go_to_target(tgt):
 def generate_global_target_msg():
     
     target_yaml = rospy.get_param('~target')
-    print target_yaml
+
     msg = GlobalPositionTarget()
     
-    msg.coordinate_frame = 5
+    msg.coordinate_frame = rospy.get_param('coordinate_frame', 5)
     # uint8 FRAME_GLOBAL_INT = 5
     # uint8 FRAME_GLOBAL_REL_ALT = 6
     # uint8 FRAME_GLOBAL_TERRAIN_ALT = 11
@@ -55,7 +55,7 @@ def generate_global_target_msg():
     msg.longitude = target_yaml['longitude']
     msg.altitude = target_yaml['altitude']
 
-    msg.header.frame_id = "fcu"
+    msg.header.frame_id = rospy.get_param('~frame_id', 'fcu')
     msg.header.stamp = rospy.Time.now()
     return msg
 

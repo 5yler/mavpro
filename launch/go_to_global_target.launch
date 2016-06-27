@@ -4,12 +4,16 @@
 
 	<arg name="log_output" default="screen" />
 
-	<!-- flight Pixhawk URL -->
+	<!-- go_to_global_target_client parameters -->
+	<arg name="frame_id" default="fcu" />
+	<arg name="coordinate_frame" default="5" />
     <arg name="target" doc="global target .yaml file" />
 
     <!-- go_to_global_target_client node -->
 	<node pkg="mavpro" type="go_to_global_target_client" name="go_to_global_target_client" output="screen">
-		<rosparam param="target" file="$(find mavpro)/config/$(arg target)" command="load"/>
+		<rosparam param="frame_id" subst_value="True">$(arg frame_id)</rosparam>
+		<rosparam param="coordinate_frame" subst_value="True">$(arg coordinate_frame)</rosparam>
+		<rosparam param="target" file="$(find mavpro)/config/$(arg target)" command="load" />
 	</node>
 
 </launch>
