@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+
+# key_pilot
+#
+# Python script for remote controlling drone with PixHawk 
+# via keyboard input and mavros setpoint_position.
+# 
+# @author   Syler Wagner    <syler@mit.edu>
+#
+# @date     2016-06-15      creation
+# @date     2016-06-16      changed from NED to ENU coordinates
+
+import rospy
+from geometry_msgs.msg import PoseStamped   # for sending commands
+import sys, select, termios, tty, math
+
+help_msg = """
+Control Your Drone!
+-------------------
+[ ] : Reset target to current location (space bar)
+
+Set target position:
+[W] : +1 N
+[S] : -1 N
+[A] : -1 E
+[D] : +1 E
+[U] : +1 Z 
+[J] : -1 Z
+
+Set mode:
+[R] : RTL
+[L] : LOITER
+
+[Q] : quit
+"""
+
+loc_x = 0
+loc_y = 0
+loc_z = 0
+
+# map keys to translations of setpoint 
+# in ENU (x: east, y: north, z: up) coordinates
+moveBindings = {
+        'w':(0.0, 1.0, 0.0),
+        's':(0.0, -1.0, 0.0),
+        'd':(1.0, 0.0, 0.0),
+        'a':(-1.0, 0.0, 0.0),
+        'u':(0.0, 0.0, 1.0),
+        'j':(0.0, 0.0, -1.0),
+}
+
+def getKey():
+    tty.setraw(sys.stdin.fileno())
+    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+    if rlist:
+        key = sys.stdin.read(1)
+    else:
+        key = ''
+
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    return key
+
+# create a PoseStamped message
+def generate_pose_msg(x, y, z):
+        pose_msg = PoseStamped()
+        pose_msg.pose.position.x = x
+        pose_msg.pose.position.y = y
+        pose_msg.pose.position.z = z
+        pose_msg.header.frame_id = "fcu"
+        pose_msg.header.stamp = rospy.Time.now()
+        return pose_msg
+
+# GPS fix message callback method
+def pose_callback(pose_msg):
+    global loc_x, loc_y, loc_z
+    loc_x = pose_msg.pose.position.x 
+    loc_y = pose_msg.pose.position.y
+    loc_z = pose_msg.pose.position.z
+
+
+def reset_setpoint_to_current_location():
+    global x, y, z
+    x = loc_x
+    y = loc_y
+    z = loc_z
+
+if __name__=="__main__":
+    settings = termios.tcgetattr(sys.stdin)
+    
+    rospy.init_node('key_pilot')
+
+    # PoseStamped message publisher
+    setpoint_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=5)
+
+    # local position subscriber
+    rospy.Subscriber('/mavros/local_position/pose', PoseStamped, pose_callback)
+
+
+    x = 0.0
+    y = 0.0
+    z = 0.0
+
+    try:
+        print help_msg
+        while True:
+            key = getKey()
+            if key in moveBindings.keys():
+                x = x + moveBindings[key][0]
+                y = y + moveBindings[key][1]
+                z = z + moveBindings[key][2]
+            elif key == ' ' :
+                # TODO: land
+                reset_setpoint_to_current_location()
+                print " [>>>] Reset target to current local coordinates!"
+            elif key == 'r' :
+                # TODO: RTL
+                print " [>>>] Switched to RTL mode!"
+            elif key == 'l' :
+                # TODO: loiter
+                print " [>>>] Switched to LOITER mode!"
+            elif key == 'q' :
+                sys.exit(0)
+
+            else:
+                if (key == '\x03'):
+                    break
+
+            # generate pose message
+            pose = generate_pose_msg(x, y, z)
+            print " [ > ] E: %4.1f   N: %4.1f   U: %4.1f " % (pose.pose.position.x, pose.pose.position.y, pose.pose.position.z)
+            # publish pose message
+            setpoint_pub.publish(pose)
+
+    finally:
+        print "Done."
+
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+
+
