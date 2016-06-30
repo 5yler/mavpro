@@ -7,6 +7,10 @@
 	<!-- go_to_global_target_client parameters -->
 	<arg name="frame_id" default="fcu" />
 	<arg name="coordinate_frame" default="5" />
+	<!--    # uint8 FRAME_GLOBAL_INT = 5
+		    # uint8 FRAME_GLOBAL_REL_ALT = 6
+		    # uint8 FRAME_GLOBAL_TERRAIN_ALT = 11 -->
+	
     <arg name="target" doc="global target .yaml file" />
 
     <!-- go_to_global_target_client node -->

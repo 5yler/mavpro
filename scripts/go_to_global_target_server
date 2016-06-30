@@ -18,14 +18,16 @@ from std_msgs.msg import Float64
 lat_lon_tolerance = 1 / 111079.08273819795 # TODO: maybe use actual math instead of fake math
 alt_tolerance = 1
 
+# initialize values to 0
+lat = lon = alt = 0
+
 def are_we_there_yet(req):
-	print " [ ? ] Are we there yet?"
 	
 	lat_err = abs(lat - req.target.latitude)
 	lon_err = abs(lon - req.target.longitude)
 	alt_err = abs(alt - req.target.altitude)
 	
-	print " [ > ] Lat error: %4.8f   Lon error: %4.8f   Alt error: %4.1f " % (lat_err, lon_err, alt_err)
+	print "       Lat error: %4.8f   Lon error: %4.8f   Alt error: %4.1f " % (lat_err, lon_err, alt_err)
 	
 	if (lat_err < lat_lon_tolerance and \
 		lon_err < lat_lon_tolerance and \
@@ -36,18 +38,30 @@ def are_we_there_yet(req):
 
 def handle_go_to_global_target(req):
     
+    print " [>> ] New global target request!"
+    print " [>> ] Lat: %4.8f   Lon: %4.8f   Alt: %4.1f " % (req.target.latitude, req.target.longitude, req.target.altitude)
+
     target_reached = False
 
     # GlobalPositionTarget message publisher
     setpoint_pub = rospy.Publisher('/mavros/setpoint_raw/global', GlobalPositionTarget, queue_size=5)
+
+    count = 0
 
     # publish GlobalTargetRequest message to setpoint_raw/global topic
     setpoint_pub.publish(req.target)
 
     # keep checking if target is reached
     while not target_reached:
-    	rospy.sleep(1)
+    	
+        #TODO: maybe republish goal while not reached?
+
+        rospy.sleep(5)
+        count += 5
+
     	target_reached = are_we_there_yet(req)
+        print " [ ? ] Are we there yet after " + str(count) + " seconds?"
+
 
     print "Yay!"
 
@@ -75,6 +89,8 @@ def go_to_global_target_server():
     # subscribe to topics publishing current position
     rospy.Subscriber('/mavros/global_position/raw/fix', NavSatFix, fix_callback)
     rospy.Subscriber('/mavros/global_position/rel_alt', Float64, rel_alt_callback)
+
+
 
     print "[   ] Ready to go to global target."
     rospy.spin()

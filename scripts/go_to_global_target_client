@@ -32,7 +32,7 @@ def generate_global_target_msg():
 
     msg = GlobalPositionTarget()
     
-    msg.coordinate_frame = rospy.get_param('coordinate_frame', 5)
+    msg.coordinate_frame = rospy.get_param('~coordinate_frame', 5)
     # uint8 FRAME_GLOBAL_INT = 5
     # uint8 FRAME_GLOBAL_REL_ALT = 6
     # uint8 FRAME_GLOBAL_TERRAIN_ALT = 11
