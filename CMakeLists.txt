@@ -6,10 +6,13 @@ project(mavpro)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   mavros
-  mavros_msgs
-  message_generation
+  mavros_msgs 
+  message_generation  # for GoToGlobalPositionTarget 
   rospy
+  roscpp              # for global_odom_to_tf.cpp
   std_msgs
+  nav_msgs            # for odometry callback in global_odom_to_tf.cpp
+  tf                  # for transform broadcaster
 )
 
 ## System dependencies are found with CMake's conventions
@@ -105,7 +108,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES mavpro
-#  CATKIN_DEPENDS mavros mavros_msgs rospy std_msgs
+ CATKIN_DEPENDS mavros mavros_msgs rospy std_msgs roscpp nav_msgs
 #  DEPENDS system_lib
 )
 
@@ -132,15 +135,24 @@ include_directories(
 
 ## Declare a C++ executable
 # add_executable(mavpro_node src/mavpro_node.cpp)
+add_executable(global_odom_to_tf 
+  src/global_odom_to_tf.cpp
+)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(mavpro_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(global_odom_to_tf mavpro_generate_messages_cpp
+)
+
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(mavpro_node
 #   ${catkin_LIBRARIES}
 # )
+ target_link_libraries(global_odom_to_tf 
+  ${catkin_LIBRARIES}
+)
 
 #############
 ## Install ##
