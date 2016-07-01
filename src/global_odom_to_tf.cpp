@@ -15,10 +15,11 @@
 #include "tf/transform_broadcaster.h"
 
 //$ TODO: use mavros.get_namespace() instead of hardcoding
-tf::TransformBroadcaster odom_broadcaster;
+ 
+ geometry_msgs::TransformStamped odom_trans;
 
-void odometryCallback(const nav_msgs::Odometry::ConstPtr& odom) {
-  geometry_msgs::TransformStamped odom_trans;
+ void odometryCallback(const nav_msgs::Odometry::ConstPtr& odom) {
+
   odom_trans.header.stamp = ros::Time::now();
   odom_trans.header.frame_id = "local_origin";
   odom_trans.child_frame_id = "fcu";
@@ -28,18 +29,20 @@ void odometryCallback(const nav_msgs::Odometry::ConstPtr& odom) {
   odom_trans.transform.translation.z = odom->pose.pose.position.z;
   odom_trans.transform.rotation = odom->pose.pose.orientation;
 
-  odom_broadcaster.sendTransform(odom_trans);
 }
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "odometry_publisher");
+  ros::init(argc, argv, "global_odom_to_tf");
 
   ros::NodeHandle n;
+  tf::TransformBroadcaster odom_broadcaster;
 
   ros::Subscriber odom_sub = n.subscribe("/mavros/global_position/local", 1000, odometryCallback);
   ros::Rate r(1000.0);
 
   while (n.ok()) {
-    ros::spin();
+    ros::spinOnce();
+    odom_broadcaster.sendTransform(odom_trans);
+    r.sleep();
   }
 }
