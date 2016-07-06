@@ -172,9 +172,10 @@ if __name__=="__main__":
                 request_mode("GUIDED")
             elif key == 'o' :
                 print " [>>>] Requesting LOITER mode!"
+                request_mode("LOITER")
             elif key == 'm' :
                 print " [>>>] Requesting STABILIZE mode!"
-                request_mode("LOITER")
+                request_mode("STABILIZE")
             elif key == 'r' :
                 print " [>>>] Requesting ARM!"
                 request_arm()
