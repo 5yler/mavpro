@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="log_output" default="screen" />
+
+	<!-- key_pilot parameters -->
+	<arg name="frame_id" default="fcu" />
+	<arg name="publish_on_startup" default="false" />
+
+    <!-- go_to_global_target_client node -->
+	<node pkg="mavpro" type="key_pilot" name="key_pilot" output="screen">
+		<rosparam param="frame_id" subst_value="True">$(arg frame_id)</rosparam>
+		<rosparam param="publish_on_startup" subst_value="True">$(arg publish_on_startup)</rosparam>
+	</node>
+
+</launch>

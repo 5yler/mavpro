@@ -9,6 +9,7 @@
 #
 # @date     2016-06-15      creation
 # @date     2016-06-16      changed from NED to ENU coordinates
+# @date     2016-07-18      refactored to class
 
 import rospy
 from geometry_msgs.msg import PoseStamped   # for sending commands
@@ -42,14 +43,9 @@ Set mode:
 [M] : STABILIZE
 [L] : LAND
 
+[P] : toggle publishing on/off
 [Q] : quit
 """
-
-loc_x = 0
-loc_y = 0
-loc_z = 0
-
-publish_setpoint = True
 
 # map keys to translations of setpoint 
 # in ENU (x: east, y: north, z: up) coordinates
@@ -62,155 +58,170 @@ move_bindings = {
         'j':(0.0, 0.0, -1.0),
 }
 
-def get_key():
-    tty.setraw(sys.stdin.fileno())
-    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-    if rlist:
-        key = sys.stdin.read(1)
-    else:
-        key = ''
+class KeyPilot():
 
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-    return key
+    def __init__(self):
+        self.settings = termios.tcgetattr(sys.stdin)
+    
+        mavros.set_namespace() # TODO: handle namespaces
 
-# create a PoseStamped message
-def generate_pose_msg(x, y, z):
+        self.frame_id = rospy.get_param('~frame_id', 'fcu')  # set frame_id for published setpoints
+        self.publish_setpoint = rospy.get_param('~publish_on_startup', True) # publish setpoints when node starts or not
+
+        # PoseStamped message publisher
+        setpoint_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=5)
+
+        # local position subscriber
+        rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.pose_callback)
+
+
+        self.loc_x = 0
+        self.loc_y = 0
+        self.loc_z = 0
+        self.loc_frame_id = "fcu"
+
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+
+        try:
+            print help_msg
+            while True:
+                key = self.get_key()
+                if key in move_bindings.keys():
+                    self.x = self.x + move_bindings[key][0]
+                    self.y = self.y + move_bindings[key][1]
+                    self.z = self.z + move_bindings[key][2]
+                elif key == ' ' :
+                    # TODO: land
+                    self.reset_setpoint_to_current_location()
+                    print " [>>>] Reset target to current local coordinates!"
+                elif key == 'g' :
+                    print " [>>>] Requesting GUIDED mode!"
+                    self.request_mode("GUIDED")
+                elif key == 'o' :
+                    print " [>>>] Requesting LOITER mode!"
+                    self.request_mode("LOITER")
+                elif key == 'm' :
+                    print " [>>>] Requesting STABILIZE mode!"
+                    self.request_mode("STABILIZE")
+                elif key == 'r' :
+                    print " [>>>] Requesting ARM!"
+                    self.request_armed(True)
+                elif key == 'k' :
+                    print " [!!!] DISARM!"
+                    self.request_armed(False)
+                elif key == 'l' :
+                    print " [>>>] Requesting LAND!"
+                    self.request_land()
+                elif key == 't' :
+                    print " [>>>] Requesting TAKEOFF!"
+                    self.request_takeoff()
+                elif key == 'p' :
+                    if self.publish_setpoint:
+                        print " [>>>] Setpoint publishing paused."
+                    if not self.publish_setpoint:
+                        print "\n [>>>] Setpoint publishing resumed!"
+                    self.publish_setpoint = not self.publish_setpoint
+                elif key == 'q' :
+                    sys.exit(0)
+
+                else:
+                    if (key == '\x03'):
+                        break
+
+                if self.publish_setpoint:
+                    # generate pose message
+                    pose = self.generate_pose_msg()
+                    print " [ > ] E: %4.1f   N: %4.1f   U: %4.1f   (frame_id: %s)" % (pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, pose.header.frame_id)
+                    # publish pose message
+                    setpoint_pub.publish(pose)
+
+        finally:
+            print "Done."
+
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
+
+    def get_key(self):
+        tty.setraw(sys.stdin.fileno())
+        rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+        if rlist:
+            key = sys.stdin.read(1)
+        else:
+            key = ''
+
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
+        return key
+
+    # pose message callback method
+    def pose_callback(self, pose_msg):
+        self.loc_x = pose_msg.pose.position.x 
+        self.loc_y = pose_msg.pose.position.y
+        self.loc_z = pose_msg.pose.position.z
+        self.loc_frame_id = pose_msg.header.frame_id
+
+    # create a PoseStamped message
+    def generate_pose_msg(self):
         pose_msg = PoseStamped()
-        pose_msg.pose.position.x = x
-        pose_msg.pose.position.y = y
-        pose_msg.pose.position.z = z
-        pose_msg.header.frame_id = "fcu"
+        pose_msg.pose.position.x = self.x
+        pose_msg.pose.position.y = self.y
+        pose_msg.pose.position.z = self.z
+        pose_msg.header.frame_id = self.frame_id
         pose_msg.header.stamp = rospy.Time.now()
         return pose_msg
 
-# GPS fix message callback method
-def pose_callback(pose_msg):
-    global loc_x, loc_y, loc_z
-    loc_x = pose_msg.pose.position.x 
-    loc_y = pose_msg.pose.position.y
-    loc_z = pose_msg.pose.position.z
+    def reset_setpoint_to_current_location(self):
+
+        # check if frame_id for setpoint and incoming pose messages match
+        if self.frame_id == self.loc_frame_id:
+            self.x = self.loc_x
+            self.y = self.loc_y
+            self.z = self.loc_z
+        else:
+            rospy.logerr("Setpoint frame_id: %s does not match position callback frame_id: %s", self.frame_id, self.loc_frame_id)
 
 
-def reset_setpoint_to_current_location():
-    global x, y, z
-    x = loc_x
-    y = loc_y
-    z = loc_z
+    def request_armed(self, arming_value):
+        command.arming(arming_value)
 
-def request_arm():
-    mavros.set_namespace()
-    command.arming(True)
+    def request_land(self):
+        rospy.wait_for_service('/mavros/cmd/land')
+        try:
+            land = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
+            response = land()
 
-def request_disarm():
-    mavros.set_namespace()
-    command.arming(False)
-
+            return response.success
+        except rospy.ServiceException, e:
+            print ' [!!!] Landing service call failed: %s' % e
 
 
-def request_land():
-    rospy.wait_for_service('/mavros/cmd/land')
-    try:
-        land = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
-        response = land()
+    def request_mode(self, mode):
+        rospy.wait_for_service('/mavros/set_mode')
+        try:
+            request_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
+            response = request_mode(custom_mode=mode)
+            return response.success
+        except rospy.ServiceException, e:
+            print ' [!!!] GUIDED mode request failed: %s' % e
 
-        return response.success
-    except rospy.ServiceException, e:
-        print ' [!!!] Landing service call failed: %s' % e
-
-
-def request_mode(mode):
-    rospy.wait_for_service('/mavros/set_mode')
-    try:
-        request_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
-        response = request_mode(custom_mode=mode)
-        return response.success
-    except rospy.ServiceException, e:
-        print ' [!!!] GUIDED mode request failed: %s' % e
-
-def request_takeoff():
-    # TODO: fix this
-    mavros.set_namespace()
-    min_pitch = 0.5
-    yaw = 0.0
-    latitude = 0.0
-    longitude = 0.0
-    altitude = 5.0
-    command.takeoff(min_pitch, yaw, latitude, longitude, altitude)
+    def request_takeoff(self):
+        # TODO: fix this
+        min_pitch = 0.5
+        yaw = 0.0
+        latitude = 0.0
+        longitude = 0.0
+        altitude = 5.0
+        command.takeoff(min_pitch, yaw, latitude, longitude, altitude)
 
 
 
 if __name__=="__main__":
-    settings = termios.tcgetattr(sys.stdin)
-    
     rospy.init_node('key_pilot')
-
-    # PoseStamped message publisher
-    setpoint_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=5)
-
-    # local position subscriber
-    rospy.Subscriber('/mavros/local_position/pose', PoseStamped, pose_callback)
-
-
-    x = 0.0
-    y = 0.0
-    z = 0.0
-
+    
     try:
-        print help_msg
-        while True:
-            key = get_key()
-            if key in move_bindings.keys():
-                x = x + move_bindings[key][0]
-                y = y + move_bindings[key][1]
-                z = z + move_bindings[key][2]
-            elif key == ' ' :
-                # TODO: land
-                reset_setpoint_to_current_location()
-                print " [>>>] Reset target to current local coordinates!"
-            elif key == 'g' :
-                print " [>>>] Requesting GUIDED mode!"
-                request_mode("GUIDED")
-            elif key == 'o' :
-                print " [>>>] Requesting LOITER mode!"
-                request_mode("LOITER")
-            elif key == 'm' :
-                print " [>>>] Requesting STABILIZE mode!"
-                request_mode("STABILIZE")
-            elif key == 'r' :
-                print " [>>>] Requesting ARM!"
-                request_arm()
-            elif key == 'k' :
-                print " [!!!] DISARM!"
-                request_disarm()
-            elif key == 'l' :
-                print " [>>>] Requesting LAND!"
-                request_land()
-            elif key == 't' :
-                print " [>>>] Requesting TAKEOFF!"
-                request_takeoff()
-            elif key == 'p' :
-                if publish_setpoint:
-                    print " [>>>] Setpoint publishing paused."
-                if not publish_setpoint:
-                    print "\n [>>>] Setpoint publishing resumed!"
-                publish_setpoint = not publish_setpoint
-            elif key == 'q' :
-                sys.exit(0)
-
-            else:
-                if (key == '\x03'):
-                    break
-
-            if publish_setpoint:
-                # generate pose message
-                pose = generate_pose_msg(x, y, z)
-                print " [ > ] E: %4.1f   N: %4.1f   U: %4.1f " % (pose.pose.position.x, pose.pose.position.y, pose.pose.position.z)
-                # publish pose message
-                setpoint_pub.publish(pose)
-
-    finally:
-        print "Done."
-
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+        KeyPilot()
+    except rospy.ROSInterruptException:
+        print " [!!!] key_pilot: ROSInterruptException!"
+        pass
 
 
