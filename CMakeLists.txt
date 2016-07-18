@@ -120,6 +120,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -135,14 +136,13 @@ include_directories(
 
 ## Declare a C++ executable
 # add_executable(mavpro_node src/mavpro_node.cpp)
-add_executable(global_odom_to_tf 
-  src/global_odom_to_tf.cpp
+add_executable(utm_fcu_tf_broadcaster
+  src/utm_fcu_tf_broadcaster.cpp
 )
-
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(mavpro_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(global_odom_to_tf mavpro_generate_messages_cpp
+add_dependencies(utm_fcu_tf_broadcaster mavpro_generate_messages_cpp
 )
 
 
@@ -150,7 +150,7 @@ add_dependencies(global_odom_to_tf mavpro_generate_messages_cpp
 # target_link_libraries(mavpro_node
 #   ${catkin_LIBRARIES}
 # )
- target_link_libraries(global_odom_to_tf 
+target_link_libraries(utm_fcu_tf_broadcaster
   ${catkin_LIBRARIES}
 )
 

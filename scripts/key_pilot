@@ -172,12 +172,11 @@ class KeyPilot():
 
     def reset_setpoint_to_current_location(self):
 
-        # check if frame_id for setpoint and incoming pose messages match
-        if self.frame_id == self.loc_frame_id:
-            self.x = self.loc_x
-            self.y = self.loc_y
-            self.z = self.loc_z
-        else:
+        self.x = self.loc_x
+        self.y = self.loc_y
+        self.z = self.loc_z
+       # check if frame_id for setpoint and incoming pose messages match
+        if not self.frame_id == self.loc_frame_id:
             rospy.logerr("Setpoint frame_id: %s does not match position callback frame_id: %s", self.frame_id, self.loc_frame_id)
 
 
