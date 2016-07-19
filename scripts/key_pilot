@@ -66,13 +66,21 @@ class KeyPilot():
         mavros.set_namespace() # TODO: handle namespaces
 
         self.frame_id = rospy.get_param('~frame_id', 'fcu')  # set frame_id for published setpoints
+
+        if self.frame_id == 'fcu':
+            self.setpoint_topic = '/mavros/setpoint_position/local'
+        else:
+            self.topic = rospy.get_param('~topic', '/mavros/setpoint_frame/'+self.frame_id)
+
         self.publish_setpoint = rospy.get_param('~publish_on_startup', True) # publish setpoints when node starts or not
 
         # PoseStamped message publisher
-        setpoint_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=5)
+        setpoint_pub = rospy.Publisher(self.topic, PoseStamped, queue_size=5)
 
         # local position subscriber
         rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.pose_callback)
+
+        rospy.logwarn('Publishing to topic: %s frame_id: %s', self.topic, self.frame_id)
 
 
         self.loc_x = 0

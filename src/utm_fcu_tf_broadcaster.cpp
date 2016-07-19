@@ -79,10 +79,8 @@ void LocalOriginToFCUBroadcaster::odometryCallback(const nav_msgs::Odometry::Con
       _odom_trans.transform.translation.y = odom->pose.pose.position.y;
       _odom_trans.transform.translation.z = odom->pose.pose.position.z;
       //$ TODO: I don't think the rotation is necessary
-      _odom_trans.transform.rotation.x = odom->pose.pose.orientation.x * 0;
-      _odom_trans.transform.rotation.y = odom->pose.pose.orientation.y * 0;
-      _odom_trans.transform.rotation.z = odom->pose.pose.orientation.z * 0;
-      _odom_trans.transform.rotation.w = odom->pose.pose.orientation.w * 0;
+      geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(0);
+      _odom_trans.transform.rotation = odom_quat;
 
       _transform_initialized = true;
 
