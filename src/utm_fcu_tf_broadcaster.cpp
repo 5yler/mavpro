@@ -111,7 +111,7 @@ void  LocalOriginToFCUBroadcaster::sendTransform() {
 }
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "global_odom_to_tf");
+  ros::init(argc, argv, "utm_fcu_tf_broadcaster");
 
   ros::NodeHandle* n = new ros::NodeHandle("~");
   LocalOriginToFCUBroadcaster broadcaster(n);

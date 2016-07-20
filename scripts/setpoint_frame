@@ -41,7 +41,7 @@ class SetpointFrameRepublisher():
 
 
         # subscriber for setpoints in custom frame
-        self.pose_sub = rospy.Subscriber(self.topic, PoseStamped, self.pose_callback)
+        self.pose_sub = rospy.Subscriber(self.topic, PoseStamped, self.pose_callback, queue_size=5)
         # publisher for setpoints in fcu frame
         self.pose_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=5)
     
@@ -65,9 +65,9 @@ class SetpointFrameRepublisher():
 
             try: # try to look up transform and republish setpoint
                 (trans,rot) = listener.lookupTransform(self.frame_id, 'fcu', rospy.Time(0))
-                x = self.x + trans[0]
-                y = self.y + trans[1]
-                z = self.z + trans[2]
+                x = self.x - trans[0]
+                y = self.y - trans[1]
+                z = self.z - trans[2]
                 self.publish_pose_msg(x, y, z)
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
@@ -88,6 +88,7 @@ class SetpointFrameRepublisher():
 
     def pose_callback(self, pose_msg):
         
+        rospy.logwarn("Got :x %2.1f y: %2.1f")
         # error checking
         if not self.frame_id == pose_msg.header.frame_id:
             rospy.logerror("Received unexpected frame_id: %s instead of frame_id: %s on %s topic!", self.frame_id, pose_msg.header.frame_id, self.topic)
@@ -98,13 +99,13 @@ class SetpointFrameRepublisher():
 
     # create a PoseStamped message
     def publish_pose_msg(self, x, y, z):
-            pose_msg = PoseStamped()
-            pose_msg.pose.position.x = x
-            pose_msg.pose.position.y = y
-            pose_msg.pose.position.z = z
-            pose_msg.header.stamp = rospy.Time.now()
-            pose_msg.header.frame_id = "fcu"
-            self.pose_pub.publish(pose_msg)
+        pose_msg = PoseStamped()
+        pose_msg.pose.position.x = x
+        pose_msg.pose.position.y = y
+        pose_msg.pose.position.z = z
+        pose_msg.header.stamp = rospy.Time.now()
+        pose_msg.header.frame_id = "fcu"
+        self.pose_pub.publish(pose_msg)
 
 if __name__=="__main__":
     
