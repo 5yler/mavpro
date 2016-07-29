@@ -70,7 +70,8 @@ class SetpointFrameRepublisher():
                 z = self.z - trans[2]
                 self.publish_pose_msg(x, y, z)
 
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException), e:
+                rospy.logerr(" [!!!] setpoint_frame exception: %s", e)
                 continue
 
             rospy.sleep(1/self.rate)
@@ -88,7 +89,6 @@ class SetpointFrameRepublisher():
 
     def pose_callback(self, pose_msg):
         
-        rospy.logwarn("Got :x %2.1f y: %2.1f")
         # error checking
         if not self.frame_id == pose_msg.header.frame_id:
             rospy.logerror("Received unexpected frame_id: %s instead of frame_id: %s on %s topic!", self.frame_id, pose_msg.header.frame_id, self.topic)
@@ -96,6 +96,9 @@ class SetpointFrameRepublisher():
         self.x = pose_msg.pose.position.x 
         self.y = pose_msg.pose.position.y
         self.z = pose_msg.pose.position.z
+
+        rospy.logwarn("Got :x %2.1f y: %2.1f", self.x, self.y)
+
 
     # create a PoseStamped message
     def publish_pose_msg(self, x, y, z):
