@@ -64,7 +64,7 @@ class SetpointFrameRepublisher():
             #     print " [ ! ] Not armed in guided mode!"
 
             try: # try to look up transform and republish setpoint
-                (trans,rot) = listener.lookupTransform(self.frame_id, 'fcu', rospy.Time(0))
+                (self.trans, rot) = listener.lookupTransform(self.frame_id, 'fcu', rospy.Time(0))
                 x = self.x - trans[0]
                 y = self.y - trans[1]
                 z = self.z - trans[2]
@@ -97,7 +97,7 @@ class SetpointFrameRepublisher():
         self.y = pose_msg.pose.position.y
         self.z = pose_msg.pose.position.z
 
-        rospy.logwarn("Got :x %2.1f y: %2.1f", self.x, self.y)
+        rospy.logwarn("Got x: %2.1f y: %2.1f", self.x, self.y)
 
 
     # create a PoseStamped message
