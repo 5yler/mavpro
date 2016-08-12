@@ -1,0 +1,8 @@
+# the goal position
+geometry_msgs/PoseStamped target
+---
+# the result
+bool success
+---
+# feedback message with current position
+geometry_msgs/PoseStamped position 
