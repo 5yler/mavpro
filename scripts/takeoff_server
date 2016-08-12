@@ -12,6 +12,7 @@ import roslib
 roslib.load_manifest('mavpro')
 import rospy
 import actionlib
+import sys
 
 from mavpro.msg import TakeoffAction #, TakeoffServer
 
@@ -20,6 +21,8 @@ from mavros_msgs.srv import CommandBool  # for landing and arming
 from mavros_msgs.srv import SetMode
 
 from mavros import command  # for arming
+
+from mavros_msgs.srv import ParamGet	# for checking sys_id match
 
 # for AUTO takeoff
 from mavros_msgs.srv import WaypointPush
@@ -47,49 +50,73 @@ class TakeoffServer:
 
 		print " [   ] Ready to take off! Use the Takeoff.action with the desired goal altitude."
 
+	def check_gcs_id_match(self):
+		mavros_sys_id = rospy.get_param('/mavros/system_id')
+		# uav_gcs_id = 
 
+		rospy.wait_for_service('/mavros/param/get')
+		get_fcu_param = rospy.ServiceProxy('/mavros/param/get', ParamGet)
+
+		try:
+			response = get_fcu_param("SYSID_MYGCS")
+			if response.success:
+				uav_gcs_id = response.value.integer
+				if mavros_sys_id == uav_gcs_id:
+					return True
+				else:
+					rospy.logerr("mavros system_id: %d", mavros_sys_id)
+					rospy.logerr("fcu SYSID_MYGCS: %d", uav_gcs_id)
+
+		except rospy.ServiceException, e:
+			print " [!!!] ParamGet service call failed: %s"%e
+
+		return False
 
 	def execute(self, goal):
 		# Do lots of awesome groundbreaking robot stuff here
-		rospy.logerr("Received takeoff goal with altitude %4.2f...", goal.desired_altitude)
+		rospy.logwarn("Received takeoff goal with altitude %4.2f...", goal.desired_altitude)
+
+		# check that mavros system_id and SYSID_MYGCS match
+		# because RC override will not work otherwise
+		if not self.check_gcs_id_match():
+			self.server.set_aborted()
+			rospy.logerr("The mavros system_id parameter and fcu SYSID_MYGCS parameter do not match. Exiting.")
+			sys.exit(-1)
 
 		self.takeoff_alt = goal.desired_altitude
 		self.current_alt = 0
 
-		rospy.logwarn("Requesting takeoff... make sure THROTTLE is at the LOWEST SETTING!")
-		rospy.sleep(1)
-		self.request_mode('STABILIZE')
-		# no luck with the takeoff service, so workaround using a takeoff AUTO mission
-		if self.push_takeoff_mission():
+		# rospy.sleep(1)
 
-			self.override_throttle(1000)
-			rospy.sleep(0.1)
-			command.arming(True)
-			success = self.auto_takeoff()
+		self.request_mode('STABILIZE') # need to be in an armable mode
+		# also can't push missions while in AUTO mode
+
+		# workaround using a takeoff AUTO mission
+		if self.push_takeoff_mission():
+			self.override_throttle(1000)	# throttle to ~lowest setting
+			rospy.sleep(0.1)				# sleep so RC override kicks in
+			command.arming(True)			# arm UAV
+			success = self.auto_takeoff()	# try autonomous takeoff
 			if success:
 				self.server.set_succeeded()
 			else:
-				rospy.logerr("Mission pushed but auto takeoff failed.")
+				rospy.logerr("Goal aborted, mission pushed but auto takeoff failed.")
 				self.server.set_aborted()
-
 		else:
 			rospy.logerr("Goal aborted, takeoff mission failed to push.")
-
 			self.server.set_aborted()
 
 	def auto_takeoff(self):
 
-		# TODO: RC override
-		self.override_throttle(1400)
-		self.request_mode('AUTO')
+		self.override_throttle(1400)	# if throttle is at lowest it will not take off
+		self.request_mode('AUTO')	
 
 		at_goal = False
 
-		while not at_goal:
-			if self.current_alt > self.takeoff_alt:
+		while not at_goal and not rospy.is_shutdown():
+			if self.current_alt > self.takeoff_alt:	# check altitude
 				rospy.logwarn("Takeoff altitude reached!")
-				rospy.logwarn("Requesting GUIDED mode. You can set the throttle to minimum again.")
-				self.override_throttle(0)
+				self.override_throttle(0)			# clear RC override, return full manual control
 				self.request_mode('GUIDED')
 				at_goal = True
 			
@@ -98,15 +125,15 @@ class TakeoffServer:
 	def override_throttle(self, pwm):
 		
 		rospy.logwarn("Overriding throttle to PWM %4.0f", pwm)
+
 		rc_override = OverrideRCIn()
 		NO_CHANGE = 65535 	# leaves RC channel value unchanged 
 		RELEASE = 0			# releases RC channel
 
 		# throttle is channel 3
-		if pwm == 0:
-			# override throttle channel with higher value
+		if pwm == 0:	# clear previous override values
 			rc_override.channels = [RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE]
-		else:
+		else:			# set override for throttle channel
 			rc_override.channels = [NO_CHANGE, NO_CHANGE, pwm, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE]
 
 		self.rc_pub.publish(rc_override)
@@ -164,13 +191,13 @@ class TakeoffServer:
 			print " [>  ] Calling waypoints service..."
 			if response.success:
 				print " [>>>] Service call successfully added", response.wp_transfered-1, "waypoints!"
-				rospy.logerr("GOOD NOW GIVE IT A LITTLE THROTTLE!")
+				return True
 			else:
 				print " [!!!] Service call failed to add ", response.wp_transfered-1, " waypoints!"
-			return response.success	
 		except rospy.ServiceException, e:
 			print " [!!!] Service call failed: %s"%e
-			return false
+		
+		return False
 
 	def request_mode(self, mode):
 		rospy.wait_for_service('/mavros/set_mode')
