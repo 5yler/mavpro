@@ -1,0 +1,24 @@
+#! /usr/bin/env python
+
+import roslib
+roslib.load_manifest('mavpro')
+import rospy
+import actionlib
+
+from mavpro.msg import TakeoffAction, TakeoffGoal
+
+if __name__ == '__main__':
+	rospy.init_node('takeoff_client')
+	client = actionlib.SimpleActionClient('takeoff', TakeoffAction)
+	rospy.logwarn("Starting takeoff_client...")
+
+	client.wait_for_server()
+
+	goal = TakeoffGoal()
+	# Fill in the goal here
+	goal.desired_altitude = 10
+
+	client.send_goal(goal)
+	rospy.logwarn("Sent takeoff goal with altitude %4.2f...", goal.desired_altitude)
+
+	client.wait_for_result(rospy.Duration.from_sec(3000.0))

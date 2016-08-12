@@ -1,0 +1,188 @@
+#! /usr/bin/env python
+
+# takeoff_server
+#
+# Action server for autonomous takeoff.
+# 
+# @author   Syler Wagner	<syler@mit.edu>
+#
+# @date	 2016-08-11	  creation
+
+import roslib
+roslib.load_manifest('mavpro')
+import rospy
+import actionlib
+
+from mavpro.msg import TakeoffAction #, TakeoffServer
+
+import mavros
+from mavros_msgs.srv import CommandBool  # for landing and arming
+from mavros_msgs.srv import SetMode
+
+from mavros import command  # for arming
+
+# for AUTO takeoff
+from mavros_msgs.srv import WaypointPush
+from mavros_msgs.msg import Waypoint, WaypointList
+from mavros_msgs.msg import OverrideRCIn
+
+from std_msgs.msg import Float64	# for relative altitude
+
+
+
+class TakeoffServer:
+	def __init__(self):
+		mavros.set_namespace() # TODO: handle namespaces
+		self.server = actionlib.SimpleActionServer('takeoff', TakeoffAction, self.execute, False)
+
+		rospy.logwarn("Starting takeoff_server...")
+
+		# relative altitude subscriber
+		self.alt_sub = rospy.Subscriber('/mavros/global_position/rel_alt', Float64, self.rel_alt_callback)
+		
+		# RC override publisher
+		self.rc_pub = rospy.Publisher('/mavros/rc/override/', OverrideRCIn, queue_size=5)
+
+		self.server.start()
+
+		print " [   ] Ready to take off! Use the Takeoff.action with the desired goal altitude."
+
+
+
+	def execute(self, goal):
+		# Do lots of awesome groundbreaking robot stuff here
+		rospy.logerr("Received takeoff goal with altitude %4.2f...", goal.desired_altitude)
+
+		self.takeoff_alt = goal.desired_altitude
+		self.current_alt = 0
+
+		rospy.logwarn("Requesting takeoff... make sure THROTTLE is at the LOWEST SETTING!")
+		rospy.sleep(1)
+		self.request_mode('STABILIZE')
+		# no luck with the takeoff service, so workaround using a takeoff AUTO mission
+		if self.push_takeoff_mission():
+
+			self.override_throttle(1000)
+			rospy.sleep(0.1)
+			command.arming(True)
+			success = self.auto_takeoff()
+			if success:
+				self.server.set_succeeded()
+			else:
+				rospy.logerr("Mission pushed but auto takeoff failed.")
+				self.server.set_aborted()
+
+		else:
+			rospy.logerr("Goal aborted, takeoff mission failed to push.")
+
+			self.server.set_aborted()
+
+	def auto_takeoff(self):
+
+		# TODO: RC override
+		self.override_throttle(1400)
+		self.request_mode('AUTO')
+
+		at_goal = False
+
+		while not at_goal:
+			if self.current_alt > self.takeoff_alt:
+				rospy.logwarn("Takeoff altitude reached!")
+				rospy.logwarn("Requesting GUIDED mode. You can set the throttle to minimum again.")
+				self.override_throttle(0)
+				self.request_mode('GUIDED')
+				at_goal = True
+			
+		return True
+
+	def override_throttle(self, pwm):
+		
+		rospy.logwarn("Overriding throttle to PWM %4.0f", pwm)
+		rc_override = OverrideRCIn()
+		NO_CHANGE = 65535 	# leaves RC channel value unchanged 
+		RELEASE = 0			# releases RC channel
+
+		# throttle is channel 3
+		if pwm == 0:
+			# override throttle channel with higher value
+			rc_override.channels = [RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE]
+		else:
+			rc_override.channels = [NO_CHANGE, NO_CHANGE, pwm, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE]
+
+		self.rc_pub.publish(rc_override)
+
+
+	# relative altitude message callback method
+	def rel_alt_callback(self, rel_alt_msg):
+		self.current_alt = rel_alt_msg.data
+
+
+	def create_takeoff_mission(self, altitude):
+		waypoints = []
+
+		#$ add dummy start waypoint
+		dummy = Waypoint()
+		dummy.frame = 0
+		dummy.command = 16 # MAV_CMD_WAYPOINT
+		dummy.is_current = False
+		dummy.autocontinue = True
+		dummy.param1 = 0
+		dummy.param2 = 0
+		dummy.param3 = 0
+		dummy.param4 = 0
+		dummy.x_lat = 0
+		dummy.y_long = 0
+		dummy.z_alt = 0
+		waypoints.append(dummy)
+
+		#$ add takeoff takeoff
+		takeoff = Waypoint()
+		takeoff.frame = 3 # 3 MAV_FRAME_GLOBAL_RELATIVE_ALT
+		takeoff.command = 22 # 22 MAV_CMD_NAV_TAKEOFF  
+		takeoff.is_current = True
+		takeoff.autocontinue = True
+		takeoff.param1 = 5 # min_pitch
+		takeoff.param2 = 0
+		takeoff.param3 = 0
+		takeoff.param4 = 0
+		takeoff.x_lat = 0
+		takeoff.y_long = 0
+		takeoff.z_alt = altitude
+		waypoints.append(takeoff)
+
+		return waypoints
+
+	def push_takeoff_mission(self):
+
+		rospy.wait_for_service('/mavros/mission/push')
+		set_takeoff_mission = rospy.ServiceProxy('/mavros/mission/push', WaypointPush)
+
+		waypoints = self.create_takeoff_mission(self.takeoff_alt + 2) # make it 2m higher so it will overreach
+
+		try:
+			response = set_takeoff_mission(waypoints)
+			print " [>  ] Calling waypoints service..."
+			if response.success:
+				print " [>>>] Service call successfully added", response.wp_transfered-1, "waypoints!"
+				rospy.logerr("GOOD NOW GIVE IT A LITTLE THROTTLE!")
+			else:
+				print " [!!!] Service call failed to add ", response.wp_transfered-1, " waypoints!"
+			return response.success	
+		except rospy.ServiceException, e:
+			print " [!!!] Service call failed: %s"%e
+			return false
+
+	def request_mode(self, mode):
+		rospy.wait_for_service('/mavros/set_mode')
+		try:
+			request_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
+			response = request_mode(custom_mode=mode)
+			return response.success
+		except rospy.ServiceException, e:
+			print ' [!!!] Mode change request failed: %s' % e
+
+
+if __name__ == '__main__':
+	rospy.init_node('takeoff_server')
+	server = TakeoffServer()
+	rospy.spin()

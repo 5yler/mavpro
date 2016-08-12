@@ -5,13 +5,16 @@ project(mavpro)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  actionlib
+  actionlib_msgs
+  genmsg              # for actionlib
   mavros
   mavros_msgs 
   message_generation  # for GoToGlobalPositionTarget 
   rospy
   roscpp              # for global_odom_to_tf.cpp
   std_msgs
-  nav_msgs            # for odometry callback in global_odom_to_tf.cpp
+  nav_msgs            # for odometry callbacks
   tf                  # for transform broadcaster
 )
 
@@ -62,16 +65,16 @@ add_service_files(
 )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(#DIRECTORY action 
+  FILES 
+  Takeoff.action
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs  # Or other packages containing msgs
+  actionlib_msgs  #$ for actionlib
+  std_msgs  
   mavros_msgs	#$ for GlobalPositionTarget
   sensor_msgs	#$ for NavSatFix
 )
