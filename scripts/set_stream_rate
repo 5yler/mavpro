@@ -1,0 +1,44 @@
+#!/usr/bin/python
+
+# set_stream_rate
+# 
+# Set rate for all mavros topics to 100Hz. 
+# Without this, all PixHawk data does not get published on startup.
+#
+# @author   Syler Wagner		<syler@mit.edu>
+# @date	 	2016-05-11		  	creation
+
+import sys
+import rospy
+import mavros
+from mavros_msgs.srv import StreamRate
+
+def set_stream_rate(rate):
+	set_rate = rospy.ServiceProxy(mavros.get_topic('set_stream_rate'), StreamRate)
+
+	done = False
+
+	while not done and not rospy.is_shutdown():
+		try:	
+			set_rate(stream_id=0, message_rate=rate, on_off=(rate != 0))
+			rospy.logwarn('Successfully set %s stream rate to %d Hz!', mavros.get_namespace(), rate)
+			done = True
+		except rospy.ServiceException, e:
+			print " [ ! ] %s"%e
+			rospy.sleep(1) # wait 1 second before retrying
+
+if __name__ == "__main__":
+
+	rospy.init_node('set_stream_rate')
+
+	rate = rospy.get_param('~rate', 100)	# get rate parameter, default to 100Hz
+
+	if rospy.has_param('~ns'):
+		mavros.set_namespace(rospy.get_param('~ns'))				# set namespace, default to 'mavros'
+	else:
+		mavros.set_namespace()
+
+	rospy.logwarn('Setting %s stream rate to %d Hz...', mavros.get_namespace(), rate)
+	set_stream_rate(rate)
+
+	sys.exit(0)
