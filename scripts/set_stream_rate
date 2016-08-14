@@ -2,11 +2,11 @@
 
 # set_stream_rate
 # 
-# Set rate for all mavros topics to 100Hz. 
-# Without this, all PixHawk data does not get published on startup.
+# Set rate for all mavros topics. 
+# Without this, all Pixhawk data does not get published on startup.
 #
-# @author   Syler Wagner		<syler@mit.edu>
-# @date	 	2016-05-11		  	creation
+# @author	Syler Wagner		<syler@mit.edu>
+# @date		2016-05-11			creation
 
 import sys
 import rospy
