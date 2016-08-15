@@ -68,7 +68,7 @@ add_service_files(
 add_action_files(#DIRECTORY action 
   FILES 
   Takeoff.action
-  GoToLocal.action
+  FlyToLocal.action
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -143,18 +143,27 @@ include_directories(
 add_executable(utm_fcu_tf_broadcaster
   src/utm_fcu_tf_broadcaster.cpp
 )
+add_executable(fly_to_local_server
+  src/fly_to_local_server.cpp
+)
+
+
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(mavpro_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(utm_fcu_tf_broadcaster mavpro_generate_messages_cpp
 )
-
+add_dependencies(fly_to_local_server mavpro_generate_messages_cpp
+)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(mavpro_node
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(utm_fcu_tf_broadcaster
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(fly_to_local_server
   ${catkin_LIBRARIES}
 )
 
