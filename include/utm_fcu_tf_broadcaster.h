@@ -46,4 +46,4 @@ public:
   int _message_count;
 };
 
-#endif // SR_NODE_EXAMPLE_CORE_H
+#endif 

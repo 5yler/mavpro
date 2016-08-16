@@ -1,0 +1,27 @@
+<?topicml version="1.0"?>
+
+<launch>
+
+	<!-- example launch file for translate_pose -->
+
+	<arg name="frame_id" default="fcu" />
+	<arg name="topic" default="/mavros/setpoint_position/local" />
+	
+	<arg name="repub_topic" default="/mavros/map_position" />
+	<arg name="repub_frame_id" default="map" />
+
+	<!-- transform between the desired frames frame -->
+	<arg name="translate_pose_transform" value="10 10 0 0 0 0 1 $(arg frame_id) $(arg repub_frame_id) 100" />
+
+    <!-- go_to_global_target_client node -->
+	<node pkg="mavpro" type="translate_pose" name="translate_pose" output="screen">
+		<rosparam param="topic" subst_value="True">$(arg topic)</rosparam>
+		<rosparam param="frame_id" subst_value="True">$(arg frame_id)</rosparam>
+		<rosparam param="repub_topic" subst_value="True">$(arg repub_topic)</rosparam>
+		<rosparam param="repub_frame_id" subst_value="True">$(arg repub_frame_id)</rosparam>
+	</node>
+
+  <node pkg="tf" type="static_transform_publisher" name="map_fcu_tf_broadcaster" args="$(arg translate_pose_transform)" output="screen" />
+
+
+</launch>

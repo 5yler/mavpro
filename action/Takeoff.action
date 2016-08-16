@@ -1,8 +1,8 @@
 # Define the goal
-float32 desired_altitude
+float64 altitude
 ---
 # Define the result
-float32 altitude
+bool success
 ---
 # Define a feedback message
-float32 percent_complete
+float64 altitude

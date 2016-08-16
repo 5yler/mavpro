@@ -31,11 +31,20 @@ from mavros_msgs.msg import OverrideRCIn
 
 from std_msgs.msg import Float64	# for relative altitude
 
+from mavpro.msg import *
 
 
-class TakeoffServer:
+class TakeoffServer(object):
+
+	# create messages that are used to publish feedback/result
+	_feedback = TakeoffFeedback()
+	_result   = TakeoffResult()
+
+
 	def __init__(self):
 		mavros.set_namespace() # TODO: handle namespaces
+		self.rate = rospy.Rate(rospy.get_param('~rate', 1)) # 1 Hz rate default
+
 		self.server = actionlib.SimpleActionServer('takeoff', TakeoffAction, self.execute, False)
 
 		rospy.logwarn("Starting takeoff_server...")
@@ -74,7 +83,7 @@ class TakeoffServer:
 
 	def execute(self, goal):
 		# Do lots of awesome groundbreaking robot stuff here
-		rospy.logwarn("Received takeoff goal with altitude %4.2f...", goal.desired_altitude)
+		rospy.logwarn("Received takeoff goal with altitude %4.2f...", goal.altitude)
 
 		# check that mavros system_id and SYSID_MYGCS match
 		# because RC override will not work otherwise
@@ -83,8 +92,8 @@ class TakeoffServer:
 			rospy.logerr("The mavros system_id parameter and fcu SYSID_MYGCS parameter do not match. Exiting.")
 			sys.exit(-1)
 
-		self.takeoff_alt = goal.desired_altitude
-		self.current_alt = 0
+		self.takeoff_alt = goal.altitude
+		self._feedback.altitude = 0
 
 		# rospy.sleep(1)
 
@@ -94,8 +103,10 @@ class TakeoffServer:
 		# workaround using a takeoff AUTO mission
 		if self.push_takeoff_mission():
 			self.override_throttle(1000)	# throttle to ~lowest setting
+			
 			rospy.sleep(0.1)				# sleep so RC override kicks in
 			command.arming(True)			# arm UAV
+			
 			success = self.auto_takeoff()	# try autonomous takeoff
 			if success:
 				self.server.set_succeeded()
@@ -108,13 +119,18 @@ class TakeoffServer:
 
 	def auto_takeoff(self):
 
-		self.override_throttle(1400)	# if throttle is at lowest it will not take off
 		self.request_mode('AUTO')	
+		self.override_throttle(1400)	# if throttle is at lowest it will not take off
 
 		at_goal = False
 
 		while not at_goal and not rospy.is_shutdown():
-			if self.current_alt > self.takeoff_alt:	# check altitude
+			
+			self.server.publish_feedback(self._feedback)
+			self.rate.sleep()
+			
+			if self._feedback.altitude > self.takeoff_alt:	# check altitude
+
 				rospy.logwarn("Takeoff altitude reached!")
 				self.override_throttle(0)			# clear RC override, return full manual control
 				self.request_mode('GUIDED')
@@ -133,6 +149,7 @@ class TakeoffServer:
 		# throttle is channel 3
 		if pwm == 0:	# clear previous override values
 			rc_override.channels = [RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE]
+			# TODO: 
 		else:			# set override for throttle channel
 			rc_override.channels = [NO_CHANGE, NO_CHANGE, pwm, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE]
 
@@ -141,7 +158,7 @@ class TakeoffServer:
 
 	# relative altitude message callback method
 	def rel_alt_callback(self, rel_alt_msg):
-		self.current_alt = rel_alt_msg.data
+		self._feedback.altitude = rel_alt_msg.data
 
 
 	def create_takeoff_mission(self, altitude):

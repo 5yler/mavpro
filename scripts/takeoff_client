@@ -16,9 +16,10 @@ if __name__ == '__main__':
 
 	goal = TakeoffGoal()
 	# Fill in the goal here
-	goal.desired_altitude = 10
+	goal.altitude = rospy.get_param('~alt', 10)
+
 
 	client.send_goal(goal)
-	rospy.logwarn("Sent takeoff goal with altitude %4.2f...", goal.desired_altitude)
+	rospy.logwarn("Sent takeoff goal with altitude %4.2f...", goal.altitude)
 
-	client.wait_for_result(rospy.Duration.from_sec(3000.0))
+	client.wait_for_result(rospy.Duration.from_sec(600.0))
