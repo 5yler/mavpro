@@ -1,0 +1,26 @@
+<?topicml version="1.0"?>
+
+<launch>
+
+	<arg name="log_output" default="screen" />
+	
+	<arg name="frame_id" default="fcu" />
+	<arg name="topic" default="/mavros/setpoint_position/local" />
+	<arg name="repub_topic" default="/mavros/map_position" />
+	<arg name="repub_frame_id" default="map" />
+
+	<!-- transform between map and fcu frame -->
+	<arg name="map_fcu_trans" value="10 10 0 0 0 0 1 $(arg repub_frame_id) fcu 100" />
+
+    <!-- go_to_global_target_client node -->
+	<node pkg="mavpro" type="translate_pose" name="translate_pose" output="screen">
+		<rosparam param="topic" subst_value="True">$(arg topic)</rosparam>
+		<rosparam param="frame_id" subst_value="True">$(arg frame_id)</rosparam>
+		<rosparam param="repub_topic" subst_value="True">$(arg repub_topic)</rosparam>
+		<rosparam param="repub_frame_id" subst_value="True">$(arg repub_frame_id)</rosparam>
+	</node>
+
+  <node pkg="tf" type="static_transform_publisher" name="map_fcu_tf_broadcaster" args="$(arg map_fcu_trans)" output="screen" />
+
+
+</launch>

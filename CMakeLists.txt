@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   actionlib_msgs
   genmsg              # for actionlib
+  geometry_msgs
   mavros
   mavros_msgs 
   message_generation  # for GoToGlobalPositionTarget 
@@ -146,6 +147,9 @@ add_executable(utm_fcu_tf_broadcaster
 add_executable(fly_to_local_server
   src/fly_to_local_server.cpp
 )
+add_executable(translate_pose
+  src/translate_pose.cpp
+)
 
 
 ## Add cmake target dependencies of the executable
@@ -164,6 +168,9 @@ target_link_libraries(utm_fcu_tf_broadcaster
   ${catkin_LIBRARIES}
 )
 target_link_libraries(fly_to_local_server
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(translate_pose
   ${catkin_LIBRARIES}
 )
 
