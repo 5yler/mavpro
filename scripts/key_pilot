@@ -21,6 +21,9 @@ from mavros_msgs.srv import CommandBool  # for landing and arming
 from mavros_msgs.srv import SetMode
 from mavros import command  # for arming
 
+# for AUTO takeoff
+from mavros_msgs.srv import WaypointPush
+from mavros_msgs.msg import Waypoint, WaypointList
 
 help_msg = """
 Control Your Drone!
@@ -35,13 +38,16 @@ Set target position:
 [U] : +1 Z 
 [J] : -1 Z
 
-Set mode:
+Command:
 [R] : ARM
 [K] : DISARM
+[T] : TAKEOFF
+[L] : LAND
+
+Set mode:
 [G] : GUIDED
 [O] : LOITER
 [M] : STABILIZE
-[L] : LAND
 
 [P] : toggle publishing on/off
 [Q] : quit
@@ -66,9 +72,10 @@ class KeyPilot():
         mavros.set_namespace() # TODO: handle namespaces
 
         self.frame_id = rospy.get_param('~frame_id', 'fcu')  # set frame_id for published setpoints
+        self.takeoff_alt = rospy.get_param('~takeoff_alt', 5)  # set frame_id for published setpoints
 
         if self.frame_id == 'fcu':
-            self.setpoint_topic = '/mavros/setpoint_position/local'
+            self.topic = '/mavros/setpoint_position/local'
         else:
             self.topic = rospy.get_param('~topic', '/mavros/setpoint_frame/'+self.frame_id)
 
@@ -197,7 +204,10 @@ class KeyPilot():
             land = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
             response = land()
 
-            return response.success
+            if response.success:
+                rospy.logwarn('Landing...')
+            else:
+                rospy.logerr('LANDING FAIL')
         except rospy.ServiceException, e:
             print ' [!!!] Landing service call failed: %s' % e
 
@@ -211,15 +221,92 @@ class KeyPilot():
         except rospy.ServiceException, e:
             print ' [!!!] GUIDED mode request failed: %s' % e
 
-    def request_takeoff(self):
-        # TODO: fix this
-        min_pitch = 0.5
-        yaw = 0.0
-        latitude = 0.0
-        longitude = 0.0
-        altitude = 5.0
-        command.takeoff(min_pitch, yaw, latitude, longitude, altitude)
+    def create_takeoff_mission(self, altitude):
+        waypoints = []
 
+        #$ add dummy start waypoint
+        dummy = Waypoint()
+        dummy.frame = 0
+        dummy.command = 16 # MAV_CMD_WAYPOINT
+        dummy.is_current = False
+        dummy.autocontinue = True
+        dummy.param1 = 0
+        dummy.param2 = 0
+        dummy.param3 = 0
+        dummy.param4 = 0
+        dummy.x_lat = 0
+        dummy.y_long = 0
+        dummy.z_alt = 0
+        waypoints.append(dummy)
+
+        #$ add takeoff takeoff
+        takeoff = Waypoint()
+        takeoff.frame = 3 # 3 MAV_FRAME_GLOBAL_RELATIVE_ALT
+        takeoff.command = 22 # 22 MAV_CMD_NAV_TAKEOFF  
+        takeoff.is_current = True
+        takeoff.autocontinue = True
+        takeoff.param1 = 5 # min_pitch
+        takeoff.param2 = 0
+        takeoff.param3 = 0
+        takeoff.param4 = 0
+        takeoff.x_lat = 0
+        takeoff.y_long = 0
+        takeoff.z_alt = altitude
+        waypoints.append(takeoff)
+
+        return waypoints
+
+
+    def request_takeoff(self):
+
+        rospy.logwarn("Requesting takeoff... make sure THROTTLE is at the LOWEST SETTING!")
+        rospy.sleep(1)
+        self.request_mode('STABILIZE')
+        # no luck with the takeoff service, so workaround using a takeoff AUTO mission
+        rospy.wait_for_service('/mavros/mission/push')
+        set_takeoff_mission = rospy.ServiceProxy('/mavros/mission/push', WaypointPush)
+
+        waypoints = self.create_takeoff_mission(self.takeoff_alt)
+
+        try:
+            response = set_takeoff_mission(waypoints)
+            print " [>  ] Calling waypoints service..."
+            if response.success:
+                print " [>>>] Service call successfully added", response.wp_transfered-1, "waypoints!"
+                rospy.logerr("GOOD NOW GIVE IT A LITTLE THROTTLE!")
+            else:
+                print " [!!!] Service call failed to add ", response.wp_transfered-1, " waypoints!"
+        except rospy.ServiceException, e:
+            print " [!!!] Service call failed: %s"%e
+
+        # # TODO: fix this
+        # min_pitch = 0.5
+        # yaw = 0.0
+        # latitude = 0.0
+        # longitude = 0.0
+        # altitude = 5.0
+        # # command.takeoff(min_pitch, yaw, latitude, longitude, altitude)
+        # rospy.wait_for_service('/mavros/cmd/takeoff')
+        # try:
+        #     try_takeoff = rospy.ServiceProxy('/mavros/cmd/takeoff', CommandTOL)
+        #     response = try_takeoff(min_pitch, yaw, latitude, longitude, altitude)
+        #     return response.success
+        # except rospy.ServiceException, e:
+        #     print ' [!!!] NOOOOOOOO!'
+        #     print "Service call failed: %s"%e
+        self.request_armed(True)
+        self.request_mode('AUTO')
+
+        reached_altititude = False
+
+        while not reached_altititude:
+            # print "[ ^ ] Not high enough yet!"
+            # rospy.sleep(1)
+            if self.loc_z > 0.85 * self.takeoff_alt:
+                reached_altititude = True
+                print "YAY!!!"
+                rospy.logwarn("Requesting GUIDED mode. You can set the throttle to minimum again.")
+                return self.request_mode('GUIDED')
 
 
 if __name__=="__main__":
