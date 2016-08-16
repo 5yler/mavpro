@@ -20,21 +20,21 @@
 
 namespace fly_to_local {
 
-	typedef actionlib::SimpleActionServer<mavpro::FlyToLocalAction> FlyToLocalActionServer;
+      typedef actionlib::SimpleActionServer<mavpro::FlyToLocalAction> FlyToLocalActionServer;
 
-	class FlyToLocal {
-  	public:
+      class FlyToLocalServer {
+      public:
 
       /**
        * @brief  Constructor for the actions
        * @param tf A reference to a TransformListener
        */
-       FlyToLocal(tf::TransformListener& tf);
+       FlyToLocalServer(tf::TransformListener& tf);
 
       /**
        * @brief  Destructor - Cleans up
        */
-       virtual ~FlyToLocal();
+       virtual ~FlyToLocalServer();
 
     private:
 
@@ -49,7 +49,7 @@ namespace fly_to_local {
 
        geometry_msgs::PoseStamped goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg);
 
-       void executeCb(const mavpro::FlyToLocalGoalConstPtr& move_base_goal);
+       void executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal);
 
        void poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose);
 
@@ -71,6 +71,8 @@ namespace fly_to_local {
        tf::TransformListener& tf_;
 
        FlyToLocalActionServer* as_;
+       mavpro::FlyToLocalResult _result;
+
 
        ros::Publisher current_goal_pub_, setpoint_pub_, action_goal_pub_;
 

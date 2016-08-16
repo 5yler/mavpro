@@ -1,6 +1,6 @@
 /**
 * fly_to_local_server.h
-* Action server for FlyToLocal action
+* Action server for FlyToLocalServer action
 * 
 * @author  Syler Wagner      <syler@mit.edu>
 
@@ -8,16 +8,18 @@
 *
 **/
 
-#include <fly_to_local.h>
+#include <fly_to_local_server.h>
 #include <cassert>	//$ for assertions
 
 namespace fly_to_local {
 
-	FlyToLocal::FlyToLocal(tf::TransformListener& tf) :
+	FlyToLocalServer::FlyToLocalServer(tf::TransformListener& tf) :
 	tf_(tf),
 	as_(NULL) 
 	{
-		as_ = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocal::executeCb, this, _1), false);
+		as_ = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocalServer::executeCb, this, _1), false);
+
+		_result.success = false; //$ initialize the result success to false (set to true once goal is reached)
 
 		ros::NodeHandle private_nh("~");
 		ros::NodeHandle nh;
@@ -26,7 +28,7 @@ namespace fly_to_local {
 		setpoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 1);
 
 		//# for keeping track of current pose
-		position_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", 1, &FlyToLocal::poseCb, this);
+		position_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", 1, &FlyToLocalServer::poseCb, this);
 
 		current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
 
@@ -38,32 +40,32 @@ namespace fly_to_local {
 		private_nh.param("xy_tolerance", xy_tolerance_, 2.0);
 		private_nh.param("z_tolerance", z_tolerance_, 2.0);
 
-		ROS_WARN("Done initializing fly_to_local_server. Ready to handle FlyToLocal.action");
+		ROS_WARN("Done initializing fly_to_local_server. Ready to handle FlyToLocalServer.action");
 
 		//$ start the action server
 		as_->start();
 	}
 
-	FlyToLocal::~FlyToLocal()
+	FlyToLocalServer::~FlyToLocalServer()
 	{
 		if (as_ != NULL)
 			delete as_;
 	}
 
 
-	void FlyToLocal::resetSetpointToCurrentPosition()
+	void FlyToLocalServer::resetSetpointToCurrentPosition()
 	{
 		setpoint_pub_.publish(current_position_);
 	}
 
 
-	void FlyToLocal::resetState()
+	void FlyToLocalServer::resetState()
 	{
 		resetSetpointToCurrentPosition();
 		ROS_WARN("Reset setpoint to current location.");
 	}
 
-	geometry_msgs::PoseStamped FlyToLocal::goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg) 
+	geometry_msgs::PoseStamped FlyToLocalServer::goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg) 
 	{
 		std::string fcu_frame = "fcu";
 
@@ -92,14 +94,14 @@ namespace fly_to_local {
 		return fcu_pose_msg;
 	}
 
-	void FlyToLocal::poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose)
+	void FlyToLocalServer::poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose)
 	{
 		current_position_.header = local_pose->header;
 		current_position_.pose = local_pose->pose;   
 	}
 
 
-	void FlyToLocal::executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal) 
+	void FlyToLocalServer::executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal) 
 	{
 		geometry_msgs::PoseStamped goal = goalToFCUFrame(fly_to_local_goal->target);
 
@@ -167,12 +169,12 @@ namespace fly_to_local {
 
 
 		//$ if the node is killed then we'll abort and return
-		as_->setAborted(mavpro::FlyToLocalResult(), "Aborting on the goal because the node has been killed");
+		as_->setAborted(_result, "Aborting on the goal because the node has been killed");
 		return;
 	}
 
 
-	bool FlyToLocal::isGoalReached(const geometry_msgs::PoseStamped& goal) 
+	bool FlyToLocalServer::isGoalReached(const geometry_msgs::PoseStamped& goal) 
 	{
 		if ((distanceXY(current_position_, goal) <= xy_tolerance_) &&
 			(distanceZ(current_position_, goal) <= z_tolerance_)) 
@@ -185,18 +187,18 @@ namespace fly_to_local {
 		}
 	}
 
-	double FlyToLocal::distanceXY(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2) 
+	double FlyToLocalServer::distanceXY(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2) 
 	{
 		return hypot(p1.pose.position.x - p2.pose.position.x, p1.pose.position.y - p2.pose.position.y);
 	}
 
-	double FlyToLocal::distanceZ(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2) 
+	double FlyToLocalServer::distanceZ(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2) 
 	{
 		return abs(p1.pose.position.z - p2.pose.position.z);
 	}
 
 
-	bool FlyToLocal::executeCycle(geometry_msgs::PoseStamped& goal) 
+	bool FlyToLocalServer::executeCycle(geometry_msgs::PoseStamped& goal) 
 	{
 
 		//$ the goal should always be in fcu frame, double check
@@ -220,7 +222,8 @@ namespace fly_to_local {
 			ROS_DEBUG_NAMED("fly_to_local_server", "Goal reached!");
 			resetState();
 
-			as_->setSucceeded(mavpro::FlyToLocalResult(), "Goal reached.");
+			_result.success = true;
+			as_->setSucceeded(_result, "Goal reached.");
 			return true;
 		}
 
@@ -228,7 +231,7 @@ namespace fly_to_local {
 		return false;
 	}
 
-	void FlyToLocal::preemptCb()     
+	void FlyToLocalServer::preemptCb()     
 	{
 		ROS_DEBUG_NAMED("fly_to_local_server", "Preempted!");
 		// set the action state to preempted
@@ -242,7 +245,7 @@ int main(int argc, char** argv)
 	ros::init(argc, argv, "fly_to_local_server");
 	tf::TransformListener tf(ros::Duration(10));
 
-	fly_to_local::FlyToLocal fly_to_local(tf);
+	fly_to_local::FlyToLocalServer fly_to_local(tf);
 
 	ros::spin();
 	return(0);

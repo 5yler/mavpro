@@ -1,8 +1,8 @@
-# Define the goal
+# the goal
 float64 altitude
 ---
-# Define the result
+# the result
 bool success
 ---
-# Define a feedback message
+# current altitude feedback message
 float64 altitude
