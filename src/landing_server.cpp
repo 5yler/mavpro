@@ -33,7 +33,7 @@
 		_n->param("controller_frequency", controller_frequency_, 0.5);
 
 		ROS_WARN("Done initializing landing_server.");
-
+		_as->start();
 	}
 
 	 ~LandingServer()
@@ -41,6 +41,10 @@
 		 if (_as != NULL)
 		 {
 			 delete _as;
+		 }
+		 if (_n != NULL)
+		 {
+			 delete _n;
 		 }
 	 }
 
