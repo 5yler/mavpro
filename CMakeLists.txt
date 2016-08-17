@@ -70,6 +70,8 @@ add_action_files(#DIRECTORY action
   FILES 
   Takeoff.action
   FlyToLocal.action
+  Landing.action
+
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -147,6 +149,9 @@ add_executable(utm_fcu_tf_broadcaster
 add_executable(fly_to_local_server
   src/fly_to_local_server.cpp
 )
+add_executable(landing_server
+  src/landing_server.cpp
+)
 add_executable(translate_pose
   src/translate_pose.cpp
 )
@@ -159,6 +164,8 @@ add_dependencies(utm_fcu_tf_broadcaster mavpro_generate_messages_cpp
 )
 add_dependencies(fly_to_local_server mavpro_generate_messages_cpp
 )
+add_dependencies(landing_server mavpro_generate_messages_cpp
+)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(mavpro_node
@@ -168,6 +175,9 @@ target_link_libraries(utm_fcu_tf_broadcaster
   ${catkin_LIBRARIES}
 )
 target_link_libraries(fly_to_local_server
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(landing_server
   ${catkin_LIBRARIES}
 )
 target_link_libraries(translate_pose
