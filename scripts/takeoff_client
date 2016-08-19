@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
 	goal = TakeoffGoal()
 	# Fill in the goal here
-	goal.altitude = rospy.get_param('~alt', 10)
+	goal.altitude = rospy.get_param('~alt', 2)
 
 
 	client.send_goal(goal)
