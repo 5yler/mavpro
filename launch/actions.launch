@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="log_output" default="screen" />
+
+	<!-- set some parameters -->
+	<arg name="controller_frequency" default="0.5" />
+	<arg name="xy_tolerance" default="2.0" />
+	<arg name="z_tolerance" default="2.0" />
+
+    <!-- Takeoff action server -->
+	<node pkg="mavpro" type="takeoff_server" name="takeoff_server" output="$(arg log_output)">
+	</node>
+
+    <!-- FlyToLocal action server -->
+	<node pkg="mavpro" type="fly_to_local_server" name="fly_to_local_server" output="$(arg log_output)">
+		<param name="controller_frequency" value="$(arg controller_frequency)" />
+		<param name="xy_tolerance" value="$(arg xy_tolerance)" />
+		<param name="z_tolerance" value="$(arg z_tolerance)" />
+	</node>
+
+    <!-- Landing action server -->
+	<node pkg="mavpro" type="landing_server" name="landing_server" output="$(arg log_output)">
+		<param name="controller_frequency" value="$(arg controller_frequency)" />
+	</node>
+
+
+</launch>
