@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="log_output" default="screen" />
+
+	<arg name="broadcast_transforms" default="false" />
+	
+	<arg name="frame_id" default="map" />
+	<arg name="x" default="0" />
+	<arg name="y" default="0" />
+	<arg name="z" default="20" />
+
+
+    <!-- fly_to_local_client node -->
+	<node pkg="mavpro" type="fly_to_local_client" name="fly_to_local_client" output="screen">
+		<param name="frame_id" value="$(arg frame_id)" />
+		<param name="x" value="$(arg x)" />
+		<param name="y" value="$(arg y)" />
+		<param name="z" value="$(arg z)" />
+	</node>
+
+	<group if="$(arg broadcast_transforms)">
+		<!-- transform between map and fcu frame -->
+		<arg name="map_fcu_trans" value="10 10 0 0 0 0 1 $(arg frame_id) fcu 100" />
+	  	<node pkg="tf" type="static_transform_publisher" name="utm_map_broadcaster" args="$(arg map_fcu_trans)" output="screen" />
+	</group>
+
+</launch>
