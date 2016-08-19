@@ -88,7 +88,8 @@ class TakeoffServer(object):
 		# check that mavros system_id and SYSID_MYGCS match
 		# because RC override will not work otherwise
 		if not self.check_gcs_id_match():
-			self.server.set_aborted()
+			self._result.success = False
+			self.server.set_aborted(self._result)
 			rospy.logerr("The mavros system_id parameter and fcu SYSID_MYGCS parameter do not match. Exiting.")
 			sys.exit(-1)
 
@@ -107,15 +108,16 @@ class TakeoffServer(object):
 			rospy.sleep(0.1)				# sleep so RC override kicks in
 			command.arming(True)			# arm UAV
 			
-			success = self.auto_takeoff()	# try autonomous takeoff
+			self._result.success = self.auto_takeoff()	# try autonomous takeoff
 			if success:
-				self.server.set_succeeded()
+				self.server.set_succeeded(self._result)
 			else:
 				rospy.logerr("Goal aborted, mission pushed but auto takeoff failed.")
-				self.server.set_aborted()
+				self.server.set_aborted(self._result)
 		else:
 			rospy.logerr("Goal aborted, takeoff mission failed to push.")
-			self.server.set_aborted()
+			self._result.success = False
+			self.server.set_aborted(self._result)
 
 	def auto_takeoff(self):
 
