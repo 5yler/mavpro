@@ -109,7 +109,7 @@ class TakeoffServer(object):
 			command.arming(True)			# arm UAV
 			
 			self._result.success = self.auto_takeoff()	# try autonomous takeoff
-			if success:
+			if self._result.success:
 				self.server.set_succeeded(self._result)
 			else:
 				rospy.logerr("Goal aborted, mission pushed but auto takeoff failed.")
