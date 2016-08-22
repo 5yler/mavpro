@@ -146,6 +146,9 @@ include_directories(
 add_executable(utm_fcu_tf_broadcaster
   src/utm_fcu_tf_broadcaster.cpp
 )
+add_executable(takeoff_server
+  src/takeoff_server.cpp
+)
 add_executable(fly_to_local_server
   src/fly_to_local_server.cpp
 )
@@ -160,7 +163,10 @@ add_executable(translate_pose
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(mavpro_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 add_dependencies(utm_fcu_tf_broadcaster mavpro_generate_messages_cpp
+)
+add_dependencies(takeoff_server mavpro_generate_messages_cpp
 )
 add_dependencies(fly_to_local_server mavpro_generate_messages_cpp
 )
@@ -172,6 +178,9 @@ add_dependencies(landing_server mavpro_generate_messages_cpp
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(utm_fcu_tf_broadcaster
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(takeoff_server
   ${catkin_LIBRARIES}
 )
 target_link_libraries(fly_to_local_server

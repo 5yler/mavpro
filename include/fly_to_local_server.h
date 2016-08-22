@@ -75,7 +75,7 @@ namespace fly_to_local {
 
       void resetSetpointToCurrentPosition();
       /**
-       * @brief  Reset the state of the move_base action and send a zero velocity command to the base
+       * @brief  Reset the state of the action and reset setpoint to current position
        */
        void resetState();
 
