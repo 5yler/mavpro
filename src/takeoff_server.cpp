@@ -67,26 +67,35 @@
  	_n(NULL),
  	_as(NULL)
  	{
+ 		std::string ns = ros::this_node::getNamespace();
+
+		if (ns == "/") {
+			_ns = "mavros";
+ 		}
+		else
+		{
+			_ns = ns;
+		}
+		ROS_WARN("Starting takeoff_server with mavros namespace '%s'", _ns.c_str());
+
  		_n = new ros::NodeHandle("~");
 
 		// //# for comanding the UAV
-		// _vel_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 1);
+		// _vel_pub = nh.advertise<geometry_msgs::PoseStamped>(_ns+"/setpoint_position/local", 1);
 
  		_as = new TakeoffActionServer(ros::NodeHandle(), "takeoff", boost::bind(&TakeoffServer::executeCb, this, _1), false);
 
 		//# for keeping track of current altitude
- 		_alt_sub = _n->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 1, &TakeoffServer::altCallback, this);
- 		_state_sub = _n->subscribe<mavros_msgs::State>("/mavros/state", 1, &TakeoffServer::stateCallback, this);
- 		_rc_sub = _n->subscribe<mavros_msgs::RCIn>("/mavros/rc/in", 1, &TakeoffServer::radioCallback, this);
+ 		_alt_sub = _n->subscribe<std_msgs::Float64>(_ns+"/global_position/rel_alt", 1, &TakeoffServer::altCallback, this);
+ 		_state_sub = _n->subscribe<mavros_msgs::State>(_ns+"/state", 1, &TakeoffServer::stateCallback, this);
+ 		_rc_sub = _n->subscribe<mavros_msgs::RCIn>(_ns+"/rc/in", 1, &TakeoffServer::radioCallback, this);
 
 
- 		_rc_pub = _n->advertise<mavros_msgs::OverrideRCIn>("/mavros/rc/override", 1);
-
-
+ 		_rc_pub = _n->advertise<mavros_msgs::OverrideRCIn>(_ns+"/rc/override", 1);
 
 		//$ set parameter
  		_n->param("controller_frequency", _controller_frequency, 10.0);
- 		_n->param("z_tolerance", _z_tolerance, 1);
+ 		_n->param("z_tolerance", _z_tolerance, 1.0);
 
  		ROS_WARN("Done initializing takeoff_server.");
  		_as->start();
@@ -106,6 +115,7 @@
 
  private:
 
+	std::string _ns;
 
  	TakeoffActionServer* _as;
  	mavpro::TakeoffResult _result;
@@ -129,9 +139,9 @@
 	{
 		int mavros_sys_id, uav_gcs_id;
 
-		_n->getParam("mavros/system_id", mavros_sys_id);
+		_n->getParam(_ns+"/system_id", mavros_sys_id);
 
-		ros::ServiceClient param_client = _n->serviceClient<mavros_msgs::ParamGet>("/mavros/param/get");
+		ros::ServiceClient param_client = _n->serviceClient<mavros_msgs::ParamGet>(_ns+"/param/get");
 
 		mavros_msgs::ParamGet srv;
 		srv.request.param_id = "SYSID_MYGCS";
@@ -155,7 +165,7 @@
 
 	bool setMode(const std::string mode)
 	{
-		ros::ServiceClient mode_client = _n->serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
+		ros::ServiceClient mode_client = _n->serviceClient<mavros_msgs::SetMode>(_ns+"/set_mode");
 		mavros_msgs::SetMode srv;
 
 		srv.request.base_mode = 0;
@@ -245,7 +255,7 @@
 	{
 		//$ TODO
 
-		ros::ServiceClient arming_client = _n->serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
+		ros::ServiceClient arming_client = _n->serviceClient<mavros_msgs::CommandBool>(_ns+"/cmd/arming");
 		mavros_msgs::CommandBool srv;
 
 		srv.request.value = arming_value;
@@ -367,7 +377,7 @@
 
 		mavros_msgs::CommandTOL srv;
 
-		ros::ServiceClient takeoff_client = _n->serviceClient<mavros_msgs::CommandTOL>("/mavros/cmd/takeoff");
+		ros::ServiceClient takeoff_client = _n->serviceClient<mavros_msgs::CommandTOL>(_ns+"/cmd/takeoff");
 
 		srv.request.min_pitch = 5;
 		srv.request.yaw = 0;

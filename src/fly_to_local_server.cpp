@@ -46,10 +46,21 @@
 namespace fly_to_local {
 
 	FlyToLocalServer::FlyToLocalServer(tf::TransformListener& tf) :
-	tf_(tf),
-	as_(NULL) 
+	_tf(tf),
+	_as(NULL)
 	{
-		as_ = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocalServer::executeCb, this, _1), false);
+		std::string ns = ros::this_node::getNamespace();
+
+		if (ns == "/") {
+			_ns = "mavros";
+		}
+		else
+		{
+			_ns = ns;
+		}
+		ROS_WARN("Starting fly_to_local_server with mavros namespace '%s'", _ns.c_str());
+
+		_as = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocalServer::executeCb, this, _1), false);
 
 		_result.success = false; //$ initialize the result success to false (set to true once goal is reached)
 
@@ -57,37 +68,37 @@ namespace fly_to_local {
 		ros::NodeHandle nh;
 
 		//# for comanding the UAV
-		setpoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 1);
+		_setpoint_pub = nh.advertise<geometry_msgs::PoseStamped>(_ns+"/setpoint_position/local", 1);
 
 		//# for keeping track of current pose
-		position_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", 1, &FlyToLocalServer::poseCb, this);
+		_position_sub = nh.subscribe<geometry_msgs::PoseStamped>(_ns+"/local_position/pose", 1, &FlyToLocalServer::poseCb, this);
 
-		current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
+		_current_goal_pub = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
 
 		ros::NodeHandle action_nh("fly_to_local_server");
-		action_goal_pub_ = action_nh.advertise<mavpro::FlyToLocalActionGoal>("goal", 1);
+		_action_goal_pub = action_nh.advertise<mavpro::FlyToLocalActionGoal>("goal", 1);
 
 		//$ set some parameters
-		private_nh.param("controller_frequency", controller_frequency_, 0.5);
-		private_nh.param("xy_tolerance", xy_tolerance_, 2.0);
-		private_nh.param("z_tolerance", z_tolerance_, 2.0);
+		private_nh.param("controller_frequency", _controller_frequency, 0.5);
+		private_nh.param("xy_tolerance", _xy_tolerance, 2.0);
+		private_nh.param("z_tolerance", _z_tolerance, 2.0);
 
 		ROS_WARN("Done initializing fly_to_local_server. Ready to handle FlyToLocalServer.action");
 
 		//$ start the action server
-		as_->start();
+		_as->start();
 	}
 
 	FlyToLocalServer::~FlyToLocalServer()
 	{
-		if (as_ != NULL)
-			delete as_;
+		if (_as != NULL)
+			delete _as;
 	}
 
 
 	void FlyToLocalServer::resetSetpointToCurrentPosition()
 	{
-		setpoint_pub_.publish(current_position_);
+		_setpoint_pub.publish(_current_position);
 	}
 
 
@@ -107,7 +118,7 @@ namespace fly_to_local {
 		tf::StampedTransform transform;
 
 		try{
-			tf_.lookupTransform(goal_pose_msg.header.frame_id, fcu_frame, ros::Time(0), transform);
+			_tf.lookupTransform(goal_pose_msg.header.frame_id, fcu_frame, ros::Time(0), transform);
 			
 			fcu_pose_msg.pose.position.x = goal_pose_msg.pose.position.x - transform.getOrigin().x();
 			fcu_pose_msg.pose.position.y = goal_pose_msg.pose.position.y - transform.getOrigin().y();
@@ -128,8 +139,8 @@ namespace fly_to_local {
 
 	void FlyToLocalServer::poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose)
 	{
-		current_position_.header = local_pose->header;
-		current_position_.pose = local_pose->pose;   
+		_current_position.header = local_pose->header;
+		_current_position.pose = local_pose->pose;
 	}
 
 
@@ -137,27 +148,27 @@ namespace fly_to_local {
 	{
 		geometry_msgs::PoseStamped goal = goalToFCUFrame(fly_to_local_goal->target);
 
-		current_goal_pub_.publish(goal);
+		_current_goal_pub.publish(goal);
 		ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
 
-		ros::Rate r(controller_frequency_);
+		ros::Rate r(_controller_frequency);
 
 		ros::NodeHandle n;
 
 		while(n.ok())
 		{
-			if (as_->isPreemptRequested()) 
+			if (_as->isPreemptRequested())
 			{
-				if (as_->isNewGoalAvailable()) 
+				if (_as->isNewGoalAvailable())
 				{
 					// if we're active and a new goal is available, we'll accept it
-					mavpro::FlyToLocalGoal new_goal = *as_->acceptNewGoal();
+					mavpro::FlyToLocalGoal new_goal = *_as->acceptNewGoal();
 
 					goal = goalToFCUFrame(new_goal.target);
 
 					// publish current goal
 					ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f", goal.pose.position.x, goal.pose.position.y);
-					current_goal_pub_.publish(goal);
+					_current_goal_pub.publish(goal);
 				}
 				else 
 				{ // if we've been preempted explicitly, shut things down
@@ -165,7 +176,7 @@ namespace fly_to_local {
 
 					// notify the ActionServer that we've successfully preempted
 					ROS_INFO("fly_to_local preempting the current goal");
-					as_->setPreempted();
+					_as->setPreempted();
 
 					// return from execute after preempting
 					return;
@@ -179,7 +190,7 @@ namespace fly_to_local {
 
 				//publish the goal point to the visualizer
 				ROS_DEBUG_NAMED("fly_to_local","The global frame for fly_to_local has changed, new frame: %s, new goal position x: %.2f, y: %.2f", goal.header.frame_id.c_str(), goal.pose.position.x, goal.pose.position.y);
-				current_goal_pub_.publish(goal);
+				_current_goal_pub.publish(goal);
 			}
 
 			//for timing that gives real time even in simulation
@@ -201,15 +212,15 @@ namespace fly_to_local {
 
 
 		//$ if the node is killed then we'll abort and return
-		as_->setAborted(_result, "Aborting on the goal because the node has been killed");
+		_as->setAborted(_result, "Aborting on the goal because the node has been killed");
 		return;
 	}
 
 
 	bool FlyToLocalServer::isGoalReached(const geometry_msgs::PoseStamped& goal) 
 	{
-		if ((distanceXY(current_position_, goal) <= xy_tolerance_) &&
-			(distanceZ(current_position_, goal) <= z_tolerance_)) 
+		if ((distanceXY(_current_position, goal) <= _xy_tolerance) &&
+			(distanceZ(_current_position, goal) <= _z_tolerance))
 		{
 			return true;
 		} 
@@ -237,14 +248,14 @@ namespace fly_to_local {
 		assert(goal.header.frame_id == "fcu");
 
 		//$ publish setpoint to mavros setpoint_position which will handle the controls
-		setpoint_pub_.publish(goal);
+		_setpoint_pub.publish(goal);
 
 		//$ TODO: use feedback in same frame as goal?
 
 		//$ publish feedback
 		mavpro::FlyToLocalFeedback feedback;
-		feedback.position = current_position_;
-		as_->publishFeedback(feedback);
+		feedback.position = _current_position;
+		_as->publishFeedback(feedback);
 
 
 		//$ check if goal has been reached
@@ -255,7 +266,7 @@ namespace fly_to_local {
 			resetState();
 
 			_result.success = true;
-			as_->setSucceeded(_result, "Goal reached.");
+			_as->setSucceeded(_result, "Goal reached.");
 			return true;
 		}
 
@@ -267,7 +278,7 @@ namespace fly_to_local {
 	{
 		ROS_DEBUG_NAMED("fly_to_local_server", "Preempted!");
 		// set the action state to preempted
-		as_->setPreempted();
+		_as->setPreempted();
 	}
 
 }

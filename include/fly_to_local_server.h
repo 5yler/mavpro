@@ -58,20 +58,21 @@ namespace fly_to_local {
       public:
 
       /**
-       * @brief  Constructor for the actions
+       * @brief  Constructor 
        * @param tf A reference to a TransformListener
        */
        FlyToLocalServer(tf::TransformListener& tf);
 
       /**
-       * @brief  Destructor - Cleans up
+       * @brief  Destructor 
        */
        virtual ~FlyToLocalServer();
 
     private:
 
-      double controller_frequency_;
-      double xy_tolerance_, z_tolerance_;
+      std::string _ns;
+      double _controller_frequency;
+      double _xy_tolerance, _z_tolerance;
 
       void resetSetpointToCurrentPosition();
       /**
@@ -100,16 +101,15 @@ namespace fly_to_local {
 
        void preemptCb();
 
-       tf::TransformListener& tf_;
+       tf::TransformListener& _tf;
 
-       FlyToLocalActionServer* as_;
+       FlyToLocalActionServer* _as;
        mavpro::FlyToLocalResult _result;
 
+       ros::Publisher _current_goal_pub, _setpoint_pub, _action_goal_pub;
 
-       ros::Publisher current_goal_pub_, setpoint_pub_, action_goal_pub_;
-
-       ros::Subscriber position_sub_;
-       geometry_msgs::PoseStamped current_position_;
+       ros::Subscriber _position_sub;
+       geometry_msgs::PoseStamped _current_position;
 
   };
 };
