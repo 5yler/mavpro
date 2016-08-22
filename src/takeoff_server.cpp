@@ -37,7 +37,7 @@
  * Actionlib implementation of UAV takeoff
  * 
  * @author  Syler Wagner  <syler@mit.edu>
- * @date    2016-08-15    creation
+ * @date    2016-08-21    creation
  **/
 
 #include <ros/ros.h>
@@ -86,7 +86,7 @@
 
 		//$ set parameter
  		_n->param("controller_frequency", _controller_frequency, 10.0);
- 		_n->param("z_tolerance", _z_tolerance, 2.0);
+ 		_n->param("z_tolerance", _z_tolerance, 1);
 
  		ROS_WARN("Done initializing takeoff_server.");
  		_as->start();
