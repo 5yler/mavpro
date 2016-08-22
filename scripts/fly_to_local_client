@@ -1,0 +1,33 @@
+#! /usr/bin/env python
+
+import roslib
+roslib.load_manifest('mavpro')
+import rospy
+import actionlib
+
+from mavpro.msg import FlyToLocalAction, FlyToLocalGoal
+from geometry_msgs.msg import PoseStamped   # for sending commands
+
+
+
+if __name__ == '__main__':
+	rospy.init_node('fly_to_local_client')
+	client = actionlib.SimpleActionClient('fly_to_local', FlyToLocalAction)
+	rospy.logwarn("Starting fly_to_local_client...")
+
+	client.wait_for_server()
+
+	goal = FlyToLocalGoal()
+
+	# create a PoseStamped message 
+	goal.target = PoseStamped()
+	goal.target.pose.position.x = rospy.get_param('~x', 0)
+	goal.target.pose.position.y = rospy.get_param('~y', 0)
+	goal.target.pose.position.z = rospy.get_param('~z', 0)
+	goal.target.header.frame_id = rospy.get_param('~frame_id', 'fcu')
+	goal.target.header.stamp = rospy.Time.now()
+
+	client.send_goal(goal)
+	rospy.logwarn("Sent fly_to_local goal in %s frame with x: %4.2f, y: %4.2f, z: %4.2f...", goal.target.header.frame_id, goal.target.pose.position.x, goal.target.pose.position.y, goal.target.pose.position.z)
+
+	client.wait_for_result(rospy.Duration.from_sec(600.0))
