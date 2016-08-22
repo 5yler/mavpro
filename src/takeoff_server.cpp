@@ -322,10 +322,10 @@
 
 	bool isGoalReached(const double goal) 
 	{
-		if (abs(goal - _current_alt) <= _z_tolerance)
-		{
-			ROS_INFO("goal: %4.1f, current: %4.1f, error: %4.1f", goal, _current_alt, (goal - _current_alt));
+		ROS_INFO("goal: %4.1f, current alt: %4.1f, error: %4.1f", goal, _current_alt, fabs(goal - _current_alt));
 
+		if (fabs(goal - _current_alt) <= _z_tolerance)
+		{
 			return true;
 		} 
 		else 
