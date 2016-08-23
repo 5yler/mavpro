@@ -41,7 +41,6 @@
  **/
 
 #include <ros/ros.h>
-#include <pid_controller.h>
 #include <actionlib/server/simple_action_server.h>
 #include <mavpro/TakeoffAction.h>
 
