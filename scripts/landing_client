@@ -9,14 +9,14 @@ from mavpro.msg import LandingAction, LandingGoal
 
 if __name__ == '__main__':
 	rospy.init_node('landing_client')
-	client = actionlib.SimpleActionClient('landing', LandingAction)
+	landing_client = actionlib.SimpleActionClient('landing', LandingAction)
 	rospy.logwarn("Starting landing_client...")
 
-	client.wait_for_server()
+	landing_client.wait_for_server()
 
 	goal = LandingGoal()
 
-	client.send_goal(goal)
+	landing_client.send_goal(goal)
 	rospy.logwarn("Sent landing goal")
 
-	client.wait_for_result(rospy.Duration.from_sec(600.0))
+	landing_client.wait_for_result(rospy.Duration.from_sec(600.0))

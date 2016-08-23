@@ -52,64 +52,71 @@
 
 namespace fly_to_local {
 
-      typedef actionlib::SimpleActionServer<mavpro::FlyToLocalAction> FlyToLocalActionServer;
+  typedef actionlib::SimpleActionServer<mavpro::FlyToLocalAction> FlyToLocalActionServer;
 
-      class FlyToLocalServer {
-      public:
+  class FlyToLocalServer {
+    public:
 
-      /**
-       * @brief  Constructor 
-       * @param tf A reference to a TransformListener
-       */
-       FlyToLocalServer(tf::TransformListener& tf);
+    /**
+     * @brief  Constructor 
+     * @param tf A reference to a TransformListener
+     */
+     FlyToLocalServer(tf::TransformListener& tf);
 
-      /**
-       * @brief  Destructor 
-       */
-       virtual ~FlyToLocalServer();
+    /**
+     * @brief  Destructor 
+     */
+     virtual ~FlyToLocalServer();
 
     private:
 
       std::string _ns;
+
+      ros::NodeHandle* _nh;
+      ros::NodeHandle* _private_nh;
+
+      tf::TransformListener& _tf;
+
+      ros::Publisher _current_goal_pub, _setpoint_pub, _action_goal_pub;
+      ros::Subscriber _position_sub;
+
+      FlyToLocalActionServer* _as;
+
+      mavpro::FlyToLocalResult _result;
+
       double _controller_frequency;
       double _xy_tolerance, _z_tolerance;
 
+      geometry_msgs::PoseStamped _current_position;
+
       void resetSetpointToCurrentPosition();
+
       /**
-       * @brief  Reset the state of the action and reset setpoint to current position
-       */
-       void resetState();
+      * @brief  Reset the state of the action and reset setpoint to current position
+      */
+      void resetState();
 
-       geometry_msgs::PoseStamped goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg);
+      geometry_msgs::PoseStamped goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg);
 
-       void executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal);
+      void executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal);
 
-       void poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose);
+      void poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose);
 
-       double distanceXY(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2);
+      double distanceXY(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2);
 
-       double distanceZ(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2);
+      double distanceZ(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2);
 
-       bool isGoalReached(const geometry_msgs::PoseStamped& goal);
+      bool isGoalReached(const geometry_msgs::PoseStamped& goal);
 
-       /**
-       * @brief  Performs a control cycle
-       * @param goal A reference to the goal to pursue
-       * @return True if processing of the goal is done, false otherwise
-       */
-       bool executeCycle(geometry_msgs::PoseStamped& goal);
+      /**
+      * @brief  Performs a control cycle
+      * @param goal A reference to the goal to pursue
+      * @return True if processing of the goal is done, false otherwise
+      */
+      bool executeCycle(geometry_msgs::PoseStamped& goal);
 
-       void preemptCb();
+      void preemptCb();
 
-       tf::TransformListener& _tf;
-
-       FlyToLocalActionServer* _as;
-       mavpro::FlyToLocalResult _result;
-
-       ros::Publisher _current_goal_pub, _setpoint_pub, _action_goal_pub;
-
-       ros::Subscriber _position_sub;
-       geometry_msgs::PoseStamped _current_position;
 
   };
 };
