@@ -159,7 +159,7 @@ namespace fly_to_local {
 		geometry_msgs::PoseStamped goal = goalToFCUFrame(fly_to_local_goal->target);
 
 		_current_goal_pub.publish(goal);
-		ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
+		ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.header.frame_id.c_str());
 
 		ros::Rate r(_controller_frequency);
 
@@ -177,7 +177,7 @@ namespace fly_to_local {
 					goal = goalToFCUFrame(new_goal.target);
 
 					// publish current goal
-					ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f", goal.pose.position.x, goal.pose.position.y);
+					ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.header.frame_id.c_str());
 					_current_goal_pub.publish(goal);
 				}
 				else 

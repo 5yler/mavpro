@@ -59,6 +59,12 @@
 
  typedef actionlib::SimpleActionServer<mavpro::TakeoffAction> TakeoffActionServer;
 
+struct both_slashes {
+    bool operator()(char a, char b) const {
+        return a == '/' && b == '/';
+    }
+};
+
  class TakeoffServer
  {
  public:
@@ -75,6 +81,8 @@
  		else
  		{
  			_ns = ns;
+ 			//$ erase duplicated slashes
+ 			_ns.erase(std::unique(_ns.begin(), _ns.end(), both_slashes()), _ns.end());
  		}
  		ROS_WARN("Starting takeoff_server with mavros namespace '%s'", _ns.c_str());
 
@@ -89,6 +97,9 @@
 		//# for keeping track of current altitude
  		_alt_sub = _nh->subscribe<std_msgs::Float64>(_ns+"/global_position/rel_alt", 1, &TakeoffServer::altCallback, this);
  		_state_sub = _nh->subscribe<mavros_msgs::State>(_ns+"/state", 1, &TakeoffServer::stateCallback, this);
+
+ 		ROS_INFO("Subscribing to mavros_msgs/RCIn on topic: %s/rc/in", _ns.c_str());
+
  		_rc_sub = _nh->subscribe<mavros_msgs::RCIn>(_ns+"/rc/in", 1, &TakeoffServer::radioCallback, this);
 
 
@@ -181,12 +192,10 @@
 		bool mode_changed = false;
 
 		ros::Rate r(_controller_frequency);
+		int num_calls = 0;
 
 		while ((!mode_changed) && _nh->ok())
 		{
-
-			int num_calls = 0;
-
 			if (mode_client.call(srv))
 			{
 				if (_mode == mode)
@@ -198,17 +207,18 @@
 			}
 			else
 			{
-				ROS_ERROR("Failed to switch to %s mode", mode.c_str());
+				ROS_ERROR_THROTTLE(10, "Failed to switch to %s mode", mode.c_str());
 				num_calls += 1;
 			}
 
 			r.sleep();
 
-			if (num_calls > 5)
+			if (num_calls > 20)
 			{
-				ROS_ERROR("Tried to change mode 5 times, aborting.");
-				break;
+				ROS_ERROR("Tried to change mode %d times, aborting.", num_calls);
+				return false;
 			}
+
 		}
 
 		return mode_changed;
@@ -217,7 +227,7 @@
 	void executeCb(const mavpro::TakeoffGoalConstPtr& goal)
 	{
 
-		ROS_INFO("takeoff_server has received takeoff goal");
+		ROS_INFO("takeoff_server has received takeoff goal altitude %4.2f", goal->altitude);
 
 		ros::Rate r(_controller_frequency);
 		ros::NodeHandle n;
@@ -244,6 +254,8 @@
 
 			if (done)
 			{
+				_result.success = true;
+				_as->setSucceeded(_result);
 				return;
 			}
 			ros::WallDuration t_diff = ros::WallTime::now() - start;
@@ -269,10 +281,9 @@
 
 		bool arm_status_changed = false;
 
+		int num_calls = 0;
 		while ((!arm_status_changed) && _nh->ok())
 		{
-
-			int num_calls = 0;
 
 			if (arming_client.call(srv))
 			{
@@ -285,10 +296,10 @@
 				num_calls += 1;
 			}
 
-			if (num_calls > 5)
+			if (num_calls > 20)
 			{
-				ROS_ERROR("Tried to arm 5 times, aborting.");
-				break;
+				ROS_ERROR("Tried to arm %d times, aborting.", num_calls);
+				return false;
 			}
 		}
 
@@ -309,29 +320,32 @@
 
 		ros::WallTime start = ros::WallTime::now();
 
-		while ((_throttle_pwm != pwm) && _nh->ok())
-		{
-			//$ throttle is channel 2 (C++ is zero indexed)
-			if (pwm == 0)	//$ clear previous override values
-			{
-				for (int i = 0; i < 8; i++)
-				{
-					rc_override.channels[i] = RELEASE;
-				}
-				rc_override.channels[2] = pwm; 
-			}
-			else			//$ set override for throttle channel
-			{
-				for (int i = 0; i < 8; i++)
-				{
-					rc_override.channels[i] = NO_CHANGE;
-				}
-				rc_override.channels[2] = pwm;
-			}
+		// while ((_throttle_pwm != pwm) && _nh->ok())
+		// {
+		// 	ROS_INFO("Trying to override throttle PWM from %d to %d", _throttle_pwm, pwm);
+		// 	//$ throttle is channel 2 (C++ is zero indexed)
+		// 	if (pwm == 0)	//$ clear previous override values
+		// 	{
+		// 		for (int i = 0; i < 8; i++)
+		// 		{
+		// 			rc_override.channels[i] = RELEASE;
+		// 		}
+		// 		rc_override.channels[2] = pwm; 
+		// 	}
+		// 	else			//$ set override for throttle channel
+		// 	{
+		// 		for (int i = 0; i < 8; i++)
+		// 		{
+		// 			rc_override.channels[i] = NO_CHANGE;
+		// 		}
+		// 		rc_override.channels[2] = pwm;
+		// 	}
 
 			_rc_pub.publish(rc_override);
-			r.sleep();
-		}
+			// ros::spinOnce();
+
+			// r.sleep();
+		// }
 		ros::WallDuration t_diff = ros::WallTime::now() - start;
 		ROS_WARN("Throttle override time: %.9f\n", t_diff.toSec());
 	}
@@ -341,13 +355,13 @@
 	{
 		ROS_INFO("goal: %4.1f, current alt: %4.1f, error: %4.1f", goal, _current_alt, fabs(goal - _current_alt));
 
-		if (fabs(goal - _current_alt) <= _z_tolerance)
+		if ((goal - _current_alt) >= _z_tolerance)
 		{
-			return true;
+			return false;
 		} 
 		else 
 		{
-			return false;
+			return true;
 		}
 	}
 
@@ -377,8 +391,6 @@
 			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
 			// resetState();
 
-			_result.success = true;
-			_as->setSucceeded(_result, "Goal reached.");
 			return true;
 		}
 
@@ -394,10 +406,10 @@
 
 		bool takeoff_call_success = false;
 
+		int num_calls = 0;
+
 		while ((!takeoff_call_success) && _nh->ok())
 		{
-
-			int num_calls = 0;
 
 			if (takeoff_client.call(srv))
 			{
@@ -406,15 +418,16 @@
 			}
 			else
 			{
-				ROS_ERROR("Failed to call mavros takeoff service");
+				ROS_ERROR_THROTTLE(20, "Failed to call mavros takeoff service");
 				num_calls += 1;
 			}
 
 			if (num_calls > 5)
 			{
 				ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
-				break;
+				return false;
 			}
+			r.sleep();
 		}
 
 		 //$ not done yet
