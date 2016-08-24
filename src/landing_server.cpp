@@ -130,29 +130,19 @@
 		srv.request.base_mode = 0;
 		srv.request.custom_mode = mode;
 
+
+
 		bool mode_changed = false;
 
-		while (!mode_changed)
+		if (mode_client.call(srv))
 		{
-
-			int num_calls = 0;
-
-			if (mode_client.call(srv))
-			{
-				ROS_WARN("Changed to %s mode", mode.c_str());
-				mode_changed = true;
-			}
-			else
-			{
-				ROS_ERROR("Failed to switch to %s mode", mode.c_str());
-				num_calls += 1;
-			}
-
-			if (num_calls > 5)
-			{
-				ROS_ERROR("Tried to change mode 5 times, aborting.");
-				break;
-			}
+			ROS_WARN("Changed to %s mode", mode.c_str());
+			mode_changed = true;
+		}
+		else
+		{
+			ROS_ERROR("Failed to switch to %s mode", mode.c_str());
+			mode_changed = false;
 		}
 
 		return mode_changed;
@@ -165,6 +155,8 @@
 
 		ros::Rate r(controller_frequency_);
 		ros::NodeHandle n;
+
+		int num_cycles = 0;
 
 		while (n.ok())
 		{
@@ -188,8 +180,16 @@
 
 			if (done)
 			{
+				_result.success = true;
+			 	_as->setSucceeded(_result, "Goal reached.");
 				return;
 			}
+			else //$ landing failed
+			{
+				_as->setAborted(_result);
+				return;
+			}
+
 			ros::WallDuration t_diff = ros::WallTime::now() - start;
 			ROS_DEBUG_NAMED("landing_server","Landing time: %.9f\n", t_diff.toSec());
 
@@ -202,33 +202,48 @@
 		return;
 	}
 
-	 bool executeLanding()
-	 {
-		 //$ publish feedback
-		 mavpro::LandingFeedback feedback;
-		 feedback.altitude = _current_alt;
-		 _as->publishFeedback(feedback);
+	bool executeLanding()
+	{
+		mavpro::LandingFeedback feedback;
+		
+		bool landing_call_success = false;
+
+		int num_calls = 0;
+
+		ros::Rate r(1);
+
+		while (_nh->ok())
+		{
+		 	//$ publish feedback
+			feedback.altitude = _current_alt;
+			_as->publishFeedback(feedback);
 
 
-		 if (_mode != "LAND")
-		 {
-			setMode("LAND");
-		 }
+			if (_mode != "LAND")
+			{
+				num_calls++;
+				setMode("LAND");
 
-		 //$ check if goal has been reached
-		 if ((_mode == "LAND") && !_armed)	//$ if it has disarmed
-		 {
-			 ROS_ERROR("SUCCESS");
-			 ROS_DEBUG_NAMED("landing_server", "Goal reached!");
+				if (num_calls > 20)
+				{
+					ROS_ERROR("Failed to switch to LAND mode, aborting");
+					return false;
+				}
+			}
 
-			 _result.success = true;
-			 _as->setSucceeded(_result, "Goal reached.");
-			 return true;
-		 }
+			//$ check if goal has been reached
+			if ((_mode == "LAND") && !_armed)	//$ if it has disarmed
+			{
+				ROS_ERROR("SUCCESS");
+				ROS_DEBUG_NAMED("landing_server", "Goal reached!");
+				return true;
+			}
 
-		 //$ not done yet
-		 return false;
-	 }
+			r.sleep();
+
+		}
+		return false;
+	}
 
 	void altCallback(const std_msgs::Float64::ConstPtr& rel_alt_msg)
 	{
@@ -249,7 +264,7 @@
 	 }
 
 
- }; //$ end of mode_clientass LandingServer
+ }; //$ end of class LandingServer
 
 int main(int argc, char **argv) {
 

@@ -250,14 +250,21 @@ struct both_slashes {
 
 
 			//$ actually try to land
-			bool done = executeTakeoff(goal->altitude);
+			bool success = executeTakeoff(goal->altitude);
 
-			if (done)
+			if (success)
 			{
 				_result.success = true;
 				_as->setSucceeded(_result);
 				return;
 			}
+			else //$ takeoff failed
+			{
+				_as->setAborted(_result);
+				return;
+			}
+
+
 			ros::WallDuration t_diff = ros::WallTime::now() - start;
 			ROS_DEBUG_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
 
@@ -425,13 +432,14 @@ struct both_slashes {
 			if (num_calls > 5)
 			{
 				ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
+				// _as->setAborted(_result);
 				return false;
 			}
 			r.sleep();
 		}
 
 		 //$ not done yet
-		return false;
+		// return false;
 	}
 
 	void altCallback(const std_msgs::Float64::ConstPtr& rel_alt_msg)
@@ -458,7 +466,7 @@ struct both_slashes {
 	}
 
 
- }; //$ end of mode_clientass TakeoffServer
+ }; //$ end of class TakeoffServer
 
  int main(int argc, char **argv) {
 
