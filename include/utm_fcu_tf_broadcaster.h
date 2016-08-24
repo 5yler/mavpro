@@ -63,6 +63,8 @@ public:
 
   void sendTransform();
 
+  std::string _ns;
+
   ros::NodeHandle* _n;
 
   std::string _frame_id;  //$ child frame_id (default: fcu)

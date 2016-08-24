@@ -53,6 +53,18 @@
 LocalOriginToFCUBroadcaster::LocalOriginToFCUBroadcaster(ros::NodeHandle *n) {
   _n = n;
 
+  std::string ns = ros::this_node::getNamespace();
+
+  if (ns == "/") {
+    _ns = "mavros";
+  }
+  else
+  {
+    _ns = ns;
+  }
+  ROS_WARN("Starting utm_fcu_tf_broadcaster with mavros namespace '%s'", _ns.c_str());
+
+
   _n->param<std::string>("frame_id", _frame_id, "fcu");
 
 
@@ -62,7 +74,7 @@ LocalOriginToFCUBroadcaster::LocalOriginToFCUBroadcaster(ros::NodeHandle *n) {
   _message_count = 0;
 
   //$ UTM odometry subscriber
-  _odom_sub = _n->subscribe("/mavros/global_position/local", 1, &LocalOriginToFCUBroadcaster::odometryCallback, this);
+  _odom_sub = _n->subscribe(_ns+"/global_position/local", 1, &LocalOriginToFCUBroadcaster::odometryCallback, this);
 }
 
 LocalOriginToFCUBroadcaster::~LocalOriginToFCUBroadcaster() {}
@@ -80,14 +92,14 @@ bool LocalOriginToFCUBroadcaster::verifyOdometry(const nav_msgs::Odometry::Const
 
     if (_message_count == 1) {
       _t_first_message = ros::Time::now();
-      ROS_WARN("Got first message on /mavros/global_position/local");
+      ROS_WARN("Got first message on %s/global_position/local", _ns.c_str());
     }
     else {
       time_since_first_callback = ros::Time::now() - _t_first_message;
     }
 
     if (odom->pose.pose.position.y < 1e-6) {
-      ROS_ERROR("UTM messages on /mavros/global_position/local are invalid. Wait a second...");
+      ROS_ERROR("UTM messages on %s/global_position/local are invalid. Wait a second...", _ns.c_str());
       return false;
     }
     else if (time_since_first_callback < ros::Duration(1)) {
@@ -153,7 +165,7 @@ int main(int argc, char** argv) {
   int rate;
   std::string frame_id;
 
-  n->param("rate", rate, 100);
+  n->param("rated", rate, 100);
 
   ros::Rate r(rate);
 
