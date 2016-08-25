@@ -57,28 +57,20 @@
 			_private_nh(NULL),
 			_as(NULL)
 	{
-		std::string ns = ros::this_node::getNamespace();
-
-		if (ns == "/") {
-			_ns = "mavros";
-		}
-		else
-		{
-			_ns = ns;
-		}
 		ROS_WARN("Starting landing_server with mavros namespace '%s'", _ns.c_str());
 
 
 		_private_nh = new ros::NodeHandle("~");
-		_nh = new ros::NodeHandle();
+		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
+		_nh = new ros::NodeHandle(_ns);
 
 		_as = new LandingActionServer(ros::NodeHandle(), "landing", boost::bind(&LandingServer::executeCb, this, _1), false);
 
 		//# for keeping track of current altitude
-		_alt_sub = _nh->subscribe<std_msgs::Float64>(_ns+"/global_position/rel_alt", 1, &LandingServer::altCallback, this);
-		_state_sub = _nh->subscribe<mavros_msgs::State>(_ns+"/state", 1, &LandingServer::stateCallback, this);
+		_alt_sub = _nh->subscribe<std_msgs::Float64>("global_position/rel_alt", 1, &LandingServer::altCallback, this);
+		_state_sub = _nh->subscribe<mavros_msgs::State>("state", 1, &LandingServer::stateCallback, this);
 
-		//$ set parameter
+		//$ get some parameters
 		_private_nh->param("controller_frequency", controller_frequency_, 0.5);
 
 		ROS_WARN("Done initializing landing_server.");
@@ -124,7 +116,7 @@
 
 	bool setMode(const std::string mode)
 	{
-		ros::ServiceClient mode_client = _nh->serviceClient<mavros_msgs::SetMode>(_ns+"/set_mode");
+		ros::ServiceClient mode_client = _nh->serviceClient<mavros_msgs::SetMode>("set_mode");
 		mavros_msgs::SetMode srv;
 
 		srv.request.base_mode = 0;

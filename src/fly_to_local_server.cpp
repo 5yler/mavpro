@@ -49,36 +49,29 @@ namespace fly_to_local {
 	_tf(tf),
 	_as(NULL)
 	{
-		std::string ns = ros::this_node::getNamespace();
 
-		if (ns == "/") {
-			_ns = "mavros";
-		}
-		else
-		{
-			_ns = ns;
-		}
 		ROS_WARN("Starting fly_to_local_server with mavros namespace '%s'", _ns.c_str());
 
 		_private_nh = new ros::NodeHandle("~");
-		_nh = new ros::NodeHandle();
+		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
+		_nh = new ros::NodeHandle(_ns);
 
 		_as = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocalServer::executeCb, this, _1), false);
 
 		_result.success = false; //$ initialize the result success to false (set to true once goal is reached)
 
 		//# for comanding the UAV
-		_setpoint_pub = _nh->advertise<geometry_msgs::PoseStamped>(_ns+"/setpoint_position/local", 1);
+		_setpoint_pub = _nh->advertise<geometry_msgs::PoseStamped>("setpoint_position/local", 1);
 
 		//# for keeping track of current pose
-		_position_sub = _nh->subscribe<geometry_msgs::PoseStamped>(_ns+"/local_position/pose", 1, &FlyToLocalServer::poseCb, this);
+		_position_sub = _nh->subscribe<geometry_msgs::PoseStamped>("local_position/pose", 1, &FlyToLocalServer::poseCb, this);
 
 		_current_goal_pub = _private_nh->advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
 
 		ros::NodeHandle action_nh("fly_to_local_server");
 		_action_goal_pub = action_nh.advertise<mavpro::FlyToLocalActionGoal>("goal", 1);
 
-		//$ set some parameters
+		//$ get some parameters
 		_private_nh->param("controller_frequency", _controller_frequency, 0.5);
 		_private_nh->param("xy_tolerance", _xy_tolerance, 2.0);
 		_private_nh->param("z_tolerance", _z_tolerance, 2.0);

@@ -53,15 +53,8 @@
 LocalOriginToFCUBroadcaster::LocalOriginToFCUBroadcaster(ros::NodeHandle *n) {
   _n = n;
 
-  std::string ns = ros::this_node::getNamespace();
+  _n->param<std::string>("mavros_ns", _ns, "mavros");
 
-  if (ns == "/") {
-    _ns = "mavros";
-  }
-  else
-  {
-    _ns = ns;
-  }
   ROS_WARN("Starting utm_fcu_tf_broadcaster with mavros namespace '%s'", _ns.c_str());
 
 
@@ -165,7 +158,7 @@ int main(int argc, char** argv) {
   int rate;
   std::string frame_id;
 
-  n->param("rated", rate, 100);
+  n->param("rate", rate, 100);
 
   ros::Rate r(rate);
 
