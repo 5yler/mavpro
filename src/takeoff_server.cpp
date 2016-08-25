@@ -320,32 +320,32 @@ struct both_slashes {
 
 		ros::WallTime start = ros::WallTime::now();
 
-		// while ((_throttle_pwm != pwm) && _nh->ok())
-		// {
-		// 	ROS_INFO("Trying to override throttle PWM from %d to %d", _throttle_pwm, pwm);
-		// 	//$ throttle is channel 2 (C++ is zero indexed)
-		// 	if (pwm == 0)	//$ clear previous override values
-		// 	{
-		// 		for (int i = 0; i < 8; i++)
-		// 		{
-		// 			rc_override.channels[i] = RELEASE;
-		// 		}
-		// 		rc_override.channels[2] = pwm; 
-		// 	}
-		// 	else			//$ set override for throttle channel
-		// 	{
-		// 		for (int i = 0; i < 8; i++)
-		// 		{
-		// 			rc_override.channels[i] = NO_CHANGE;
-		// 		}
-		// 		rc_override.channels[2] = pwm;
-		// 	}
+		while ((_throttle_pwm != pwm) && _nh->ok())
+		{
+			ROS_INFO("Trying to override throttle PWM from %d to %d", _throttle_pwm, pwm);
+			//$ throttle is channel 2 (C++ is zero indexed)
+			if (pwm == 0)	//$ clear previous override values
+			{
+				for (int i = 0; i < 8; i++)
+				{
+					rc_override.channels[i] = RELEASE;
+				}
+				rc_override.channels[2] = pwm; 
+			}
+			else			//$ set override for throttle channel
+			{
+				for (int i = 0; i < 8; i++)
+				{
+					rc_override.channels[i] = NO_CHANGE;
+				}
+				rc_override.channels[2] = pwm;
+			}
 
 			_rc_pub.publish(rc_override);
-			// ros::spinOnce();
+			ros::spinOnce();
 
-			// r.sleep();
-		// }
+			r.sleep();
+		}
 		ros::WallDuration t_diff = ros::WallTime::now() - start;
 		ROS_WARN("Throttle override time: %.9f\n", t_diff.toSec());
 	}
