@@ -59,12 +59,6 @@
 
  typedef actionlib::SimpleActionServer<mavpro::TakeoffAction> TakeoffActionServer;
 
-struct both_slashes {
-    bool operator()(char a, char b) const {
-        return a == '/' && b == '/';
-    }
-};
-
  class TakeoffServer
  {
  public:
@@ -73,39 +67,29 @@ struct both_slashes {
  	_private_nh(NULL),
  	_as(NULL)
  	{
- 		std::string ns = ros::this_node::getNamespace();
-
- 		if (ns == "/") {
- 			_ns = "mavros";
- 		}
- 		else
- 		{
- 			_ns = ns;
- 			//$ erase duplicated slashes
- 			_ns.erase(std::unique(_ns.begin(), _ns.end(), both_slashes()), _ns.end());
- 		}
  		ROS_WARN("Starting takeoff_server with mavros namespace '%s'", _ns.c_str());
 
- 		_private_nh = new ros::NodeHandle("~");
- 		_nh = new ros::NodeHandle();
+		_private_nh = new ros::NodeHandle("~");
+		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
+		_nh = new ros::NodeHandle(_ns);
 
 		// //# for comanding the UAV
-		// _vel_pub = nh.advertise<geometry_msgs::PoseStamped>(_ns+"/setpoint_position/local", 1);
+		// _vel_pub = nh.advertise<geometry_msgs::PoseStamped>("setpoint_position/local", 1);
 
  		_as = new TakeoffActionServer(ros::NodeHandle(), "takeoff", boost::bind(&TakeoffServer::executeCb, this, _1), false);
 
 		//# for keeping track of current altitude
- 		_alt_sub = _nh->subscribe<std_msgs::Float64>(_ns+"/global_position/rel_alt", 1, &TakeoffServer::altCallback, this);
- 		_state_sub = _nh->subscribe<mavros_msgs::State>(_ns+"/state", 1, &TakeoffServer::stateCallback, this);
+ 		_alt_sub = _nh->subscribe<std_msgs::Float64>("global_position/rel_alt", 1, &TakeoffServer::altCallback, this);
+ 		_state_sub = _nh->subscribe<mavros_msgs::State>("state", 1, &TakeoffServer::stateCallback, this);
 
  		ROS_INFO("Subscribing to mavros_msgs/RCIn on topic: %s/rc/in", _ns.c_str());
 
- 		_rc_sub = _nh->subscribe<mavros_msgs::RCIn>(_ns+"/rc/in", 1, &TakeoffServer::radioCallback, this);
+ 		_rc_sub = _nh->subscribe<mavros_msgs::RCIn>("rc/in", 1, &TakeoffServer::radioCallback, this);
 
 
- 		_rc_pub = _nh->advertise<mavros_msgs::OverrideRCIn>(_ns+"/rc/override", 1);
+ 		_rc_pub = _nh->advertise<mavros_msgs::OverrideRCIn>("rc/override", 1);
 
-		//$ set parameter
+		//$ get some parameters
  		_private_nh->param("controller_frequency", _controller_frequency, 10.0);
  		_private_nh->param("z_tolerance", _z_tolerance, 1.0);
 
@@ -157,9 +141,9 @@ struct both_slashes {
 	{
 		int mavros_sys_id, uav_gcs_id;
 
-		_nh->getParam(_ns+"/system_id", mavros_sys_id);
+		_nh->getParam("system_id", mavros_sys_id);
 
-		ros::ServiceClient param_client = _nh->serviceClient<mavros_msgs::ParamGet>(_ns+"/param/get");
+		ros::ServiceClient param_client = _nh->serviceClient<mavros_msgs::ParamGet>("param/get");
 
 		mavros_msgs::ParamGet srv;
 		srv.request.param_id = "SYSID_MYGCS";
@@ -183,7 +167,7 @@ struct both_slashes {
 
 	bool setMode(const std::string mode)
 	{
-		ros::ServiceClient mode_client = _nh->serviceClient<mavros_msgs::SetMode>(_ns+"/set_mode");
+		ros::ServiceClient mode_client = _nh->serviceClient<mavros_msgs::SetMode>("set_mode");
 		mavros_msgs::SetMode srv;
 
 		srv.request.base_mode = 0;
@@ -274,7 +258,7 @@ struct both_slashes {
 	{
 		//$ TODO
 
-		ros::ServiceClient arming_client = _nh->serviceClient<mavros_msgs::CommandBool>(_ns+"/cmd/arming");
+		ros::ServiceClient arming_client = _nh->serviceClient<mavros_msgs::CommandBool>("cmd/arming");
 		mavros_msgs::CommandBool srv;
 
 		srv.request.value = arming_value;
@@ -376,7 +360,9 @@ struct both_slashes {
 			overrideThrottle(1000);
 			r.sleep();
 			executeArm(true);
+			overrideThrottle(1400);
 			setMode("GUIDED");
+
 		}
 
 		 //$ publish feedback
@@ -396,7 +382,7 @@ struct both_slashes {
 
 		mavros_msgs::CommandTOL srv;
 
-		ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>(_ns+"/cmd/takeoff");
+		ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
 
 		srv.request.min_pitch = 5;
 		srv.request.yaw = 0;
