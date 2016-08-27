@@ -51,11 +51,10 @@ namespace fly_to_local {
 	_tf(tf),
 	_as(NULL)
 	{
-
-		ROS_WARN("Starting fly_to_local_server with mavros namespace '%s'", _ns.c_str());
-
 		_private_nh = new ros::NodeHandle("~");
 		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
+		ROS_WARN("Starting fly_to_local_server with mavros namespace '%s'", _ns.c_str());
+
 		_nh = new ros::NodeHandle(_ns);
 
 		_as = new FlyToLocalActionServer(ros::NodeHandle(), "fly_to_local", boost::bind(&FlyToLocalServer::executeCb, this, _1), false);
