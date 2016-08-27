@@ -489,7 +489,7 @@
 		{
 			ROS_ERROR("SUCCESS!");
 			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
-			resetState();
+			clearRCOverride();
 			//$ done!
 			return true;
 		}
