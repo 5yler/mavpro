@@ -139,7 +139,8 @@
  	std::string _mode;
 	bool _armed;	//$ current arming status
 	int _throttle_pwm;
-	int _ch6_pwm;
+	int _ch6_pwm;		//$ current channel 6 PWM value
+	int _ch6_pwm_init;	//$ channel 6 PWM value when goal accepted
 
 	bool checkGCSID() 
 	{
@@ -261,6 +262,9 @@
 			return;
 		}
 
+		//$ keep track of channel 6 PWM value, so we can abort if it changes during takeoff attempt
+		_ch6_pwm_init = _ch6_pwm;
+
 		while (n.ok())
 		{
 
@@ -274,10 +278,11 @@
 				return;
 			}
 
-			if (_ch6_pwm > 2000)
+			if (_ch6_pwm != _ch6_pwm_init)
 			{
-				ROS_ERROR("detected mode switch to STABILIZE mode, aborting takeoff");
+				ROS_ERROR("detected manual activity on channel 6 switch, aborting takeoff");
 				setMode("STABILIZE");
+				clearRCOverride();
 				_as->setAborted(_result, "Aborting on the goal because an attempt at manual control was initiated");
 				//$ return from execute if manual control was initiated
 				return;
