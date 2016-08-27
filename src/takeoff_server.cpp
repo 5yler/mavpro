@@ -138,7 +138,6 @@
  	double _current_alt;
  	std::string _mode;
 	bool _armed;	//$ current arming status
-	bool _mode_switched;	//$ has the takeoff server switched mode?
 	int _throttle_pwm;
 	int _ch6_pwm;
 
@@ -278,6 +277,7 @@
 			if (_ch6_pwm > 2000)
 			{
 				ROS_ERROR("detected mode switch to STABILIZE mode, aborting takeoff");
+				setMode("STABILIZE");
 				_as->setAborted(_result, "Aborting on the goal because an attempt at manual control was initiated");
 				//$ return from execute if manual control was initiated
 				return;
