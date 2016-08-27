@@ -46,6 +46,8 @@
 namespace fly_to_local {
 
 	FlyToLocalServer::FlyToLocalServer(tf::TransformListener& tf) :
+	_private_nh(NULL),
+	_nh(NULL),
 	_tf(tf),
 	_as(NULL)
 	{

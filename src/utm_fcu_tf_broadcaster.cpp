@@ -57,17 +57,22 @@ LocalOriginToFCUBroadcaster::LocalOriginToFCUBroadcaster(ros::NodeHandle *n) {
 
   ROS_WARN("Starting utm_fcu_tf_broadcaster with mavros namespace '%s'", _ns.c_str());
 
-
-  _n->param<std::string>("frame_id", _frame_id, "fcu");
-
+  // _n->param<std::string>("frame_id", _frame_id, "fcu");
 
   //$ transform is not initialized at startup
   _transform_initialized = false;
   _t_latest_error = ros::Time::now();
   _message_count = 0;
 
+  ros::NodeHandle mavros_nh(_ns); //$ node handle for mavros global position topic
+
+  mavros_nh.param<std::string>("local_position/frame_id", _frame_id, "fcu");
+  mavros_nh.param<std::string>("global_position/frame_id", _utm_frame_id, "utm");
+
+  ROS_WARN("Trying to initialize transform between %s and %s", _utm_frame_id.c_str(), _frame_id.c_str());
+
   //$ UTM odometry subscriber
-  _odom_sub = _n->subscribe(_ns+"/global_position/local", 1, &LocalOriginToFCUBroadcaster::odometryCallback, this);
+  _odom_sub = mavros_nh.subscribe("global_position/local", 1, &LocalOriginToFCUBroadcaster::odometryCallback, this);
 }
 
 LocalOriginToFCUBroadcaster::~LocalOriginToFCUBroadcaster() {}
@@ -121,11 +126,11 @@ void LocalOriginToFCUBroadcaster::odometryCallback(const nav_msgs::Odometry::Con
       geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(0);
       _odom_trans.transform.rotation = odom_quat;
 
-      _transform_initialized = true;
-
-      ROS_WARN("Transform initialized!");
+      ROS_WARN("Transform between %s and %s initialized!", _utm_frame_id.c_str(), _frame_id.c_str());
       ROS_WARN("Translation: [x: %4.1f, y: %4.1f, z:  %4.1f]", _odom_trans.transform.translation.x, _odom_trans.transform.translation.y, _odom_trans.transform.translation.z);
       ROS_WARN("Rotation: [x: %4.1f, y: %4.1f, z:  %4.1f, w:  %4.1f]", _odom_trans.transform.rotation.x, _odom_trans.transform.rotation.y, _odom_trans.transform.rotation.z, _odom_trans.transform.rotation.w);
+
+      _transform_initialized = true;
     }
   }
 }
@@ -136,7 +141,7 @@ void LocalOriginToFCUBroadcaster::odometryCallback(const nav_msgs::Odometry::Con
 void  LocalOriginToFCUBroadcaster::sendTransform() {
   if (_transform_initialized) {
     _odom_trans.header.stamp = ros::Time::now();
-    _odom_trans.header.frame_id = "local_origin";
+    _odom_trans.header.frame_id = _utm_frame_id;
     _odom_trans.child_frame_id = _frame_id;
     _odom_broadcaster.sendTransform(_odom_trans);
   } 
