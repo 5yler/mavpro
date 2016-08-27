@@ -67,6 +67,7 @@ public:
 
   ros::NodeHandle* _n;
 
+  std::string _utm_frame_id;  //$ UTM origin frame_id
   std::string _frame_id;  //$ child frame_id (default: fcu)
 
   bool _transform_initialized;
