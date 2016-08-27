@@ -57,6 +57,14 @@
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/TwistStamped.h>
 
+ enum OperationalMode 
+ {
+	RC_TRANSMITTER,
+	NO_RC_TRANSMITTER
+  };
+
+
+
  typedef actionlib::SimpleActionServer<mavpro::TakeoffAction> TakeoffActionServer;
 
  class TakeoffServer
