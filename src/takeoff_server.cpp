@@ -196,7 +196,6 @@
 		}
 		else 
 		{
-			ROS_ERROR("Could not get FS_THR_VALUE parameter from flight controller!");
 			return false;
 		}
 	}
@@ -261,6 +260,15 @@
 			_as->setAborted(_result, "I can't do this!");
 			return;
 		}
+
+		//$ if can't get throttle failsafe cutoff parameter, abort the goal
+		if (!getThrottleFailsafeCutoff())
+		{
+			ROS_ERROR("Could not get FS_THR_VALUE parameter from flight controller! Aborting goal.");
+			_as->setAborted(_result, "I can't do this!");
+			return;
+		}
+
 
 		//$ keep track of channel 6 PWM value, so we can abort if it changes during takeoff attempt
 		_ch6_pwm_init = _ch6_pwm;
@@ -427,10 +435,7 @@
 		if (!_armed) 
 		{
 			setMode("ACRO");
-			if (_no_transmitter)
-			{
-				overrideThrottle(_throttle_failsafe_cutoff + 10);
-			}
+			overrideThrottle(_throttle_failsafe_cutoff + 10);
 			r.sleep();
 			executeArm(true);
 			overrideThrottle(1400);
@@ -476,12 +481,9 @@
 		//$ check if goal has been reached
 		if (isGoalReached(goal)) 
 		{
-			ROS_ERROR("SUCCESS");
+			ROS_ERROR("SUCCESS!");
 			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
-			if (!_no_transmitter) //$ if transmitter is used, clear RC overrides
-			{
-				clearRCOverride();
-			}
+			resetState();
 			//$ done!
 			return true;
 		}
@@ -514,8 +516,20 @@
 		_as->setPreempted();
 	}
 
+	/**
+	 * Reset UAV state by clearing RC override and setting mode to STABILIZE.
+	 */
+	void resetState()
+	{
+		if (!_no_transmitter) 
+		{
+			clearRCOverride(); //$ if transmitter is used, clear RC overrides
+			setMode("STABILIZE");	//$ switch to STABILIZE mode
+		}
+	}
 
- }; //$ end of mode_clientass TakeoffServer
+
+ }; //$ end of class TakeoffServer
 
  int main(int argc, char **argv) {
 

@@ -5,15 +5,22 @@
 	<arg name="log_output" default="screen" />
 
 	<!-- set some parameters -->
+	<arg name="no_transmitter" default="false" doc="true if not using RC transmitter during flight"/>
 	<arg name="controller_frequency" default="0.5" />
+
+	<!-- takeoff parameter -->
+	<!-- <arg name="takeoff_z_tolerance" default="0.5" /> -->
+	<!-- fly_to_local parameters -->
 	<arg name="xy_tolerance" default="2.0" />
 	<arg name="z_tolerance" default="2.0" />
 
-	<arg name="mavros_ns" default="/mavros" /> <!-- mavros node namespace -->
+	<arg name="mavros_ns" default="mavros" /> <!-- mavros node namespace -->
 
     <!-- Takeoff action server -->
 	<node pkg="mavpro" type="takeoff_server" name="takeoff_server" output="$(arg log_output)">
+		<param name="no_transmitter" value="$(arg no_transmitter)" />
 		<param name="mavros_ns" value="$(arg mavros_ns)" />
+		<!-- <param name="z_tolerance" value="$(arg takeoff_z_tolerance)" /> -->
 	</node>
 
     <!-- FlyToLocal action server -->
