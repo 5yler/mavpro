@@ -67,10 +67,10 @@
  	_private_nh(NULL),
  	_as(NULL)
  	{
- 		ROS_WARN("Starting takeoff_server with mavros namespace '%s'", _ns.c_str());
-
 		_private_nh = new ros::NodeHandle("~");
 		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
+ 		ROS_WARN("Starting takeoff_server with mavros namespace '%s'", _ns.c_str());
+
 		_nh = new ros::NodeHandle(_ns);
 
 		// //# for comanding the UAV
@@ -92,6 +92,7 @@
 		//$ get some parameters
  		_private_nh->param("controller_frequency", _controller_frequency, 10.0);
  		_private_nh->param("z_tolerance", _z_tolerance, 1.0);
+ 		_private_nh->param("no_transmitter", _no_transmitter, false);
 
  		ROS_WARN("Done initializing takeoff_server.");
  		_as->start();
@@ -131,11 +132,15 @@
 
  	double _controller_frequency;
  	double _z_tolerance;
+	bool _no_transmitter;	
+	int _throttle_failsafe_cutoff;
 
  	double _current_alt;
  	std::string _mode;
 	bool _armed;	//$ current arming status
+	bool _mode_switched;	//$ has the takeoff server switched mode?
 	int _throttle_pwm;
+	int _ch6_pwm;
 
 	bool checkGCSID() 
 	{
@@ -151,16 +156,47 @@
 		if (param_client.call(srv))
 		{
 			uav_gcs_id = srv.response.value.integer;
-		}
+		
 
-		if (mavros_sys_id == uav_gcs_id)
-		{
-			return true;
+			if (mavros_sys_id == uav_gcs_id)
+			{
+				ROS_WARN("mavros system_id: %d", mavros_sys_id);
+				ROS_WARN("fcu SYSID_MYGCS: %d", uav_gcs_id);
+				return true;
+			}
+			else
+			{
+				ROS_ERROR("Parameter mismatch!");
+				ROS_ERROR("mavros system_id: %d", mavros_sys_id);
+				ROS_ERROR("fcu SYSID_MYGCS: %d", uav_gcs_id);
+				return false;
+			}
 		}
 		else
 		{
-			ROS_ERROR("mavros system_id: %d", mavros_sys_id);
-			ROS_ERROR("fcu SYSID_MYGCS: %d", uav_gcs_id);
+			ROS_ERROR("Could not get SYSID_MYGCS parameter from FCU");
+			return false;
+		}
+	}
+
+	/**
+	 * Get value of FS_THR_VALUE parameter on flight controller, below which the throttle failsafe is activated
+	 */
+	bool getThrottleFailsafeCutoff()
+	{
+		ros::ServiceClient param_client = _nh->serviceClient<mavros_msgs::ParamGet>("param/get");
+
+		mavros_msgs::ParamGet srv;
+		srv.request.param_id = "FS_THR_VALUE";
+
+		if (param_client.call(srv))
+		{
+			_throttle_failsafe_cutoff = srv.response.value.integer;
+			return true;
+		}
+		else 
+		{
+			ROS_ERROR("Could not get FS_THR_VALUE parameter from flight controller!");
 			return false;
 		}
 	}
@@ -186,7 +222,6 @@
 				{
 					mode_changed = true;
 					ROS_WARN("Changed to %s mode", mode.c_str());
-
 				}
 			}
 			else
@@ -216,6 +251,17 @@
 		ros::Rate r(_controller_frequency);
 		ros::NodeHandle n;
 
+		//for timing that gives real time even in simulation
+		ros::WallTime start = ros::WallTime::now();
+
+		//$ check if GCS IDs match, if not, abort the goal
+		if (!checkGCSID())
+		{
+			ROS_ERROR("Cannot perform RC override with ID mismatch, aborting goal");
+			_as->setAborted(_result, "I can't do this!");
+			return;
+		}
+
 		while (n.ok())
 		{
 
@@ -229,21 +275,29 @@
 				return;
 			}
 
-			//for timing that gives real time even in simulation
-			ros::WallTime start = ros::WallTime::now();
+			if (_ch6_pwm > 2000)
+			{
+				ROS_ERROR("detected mode switch to STABILIZE mode, aborting takeoff");
+				_as->setAborted(_result, "Aborting on the goal because an attempt at manual control was initiated");
+				//$ return from execute if manual control was initiated
+				return;
+			}
 
-
-			//$ actually try to land
+			//$ actually try to take off
 			bool done = executeTakeoff(goal->altitude);
 
 			if (done)
 			{
+				ros::WallDuration t_diff = ros::WallTime::now() - start;
+				ROS_DEBUG_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
+
 				_result.success = true;
 				_as->setSucceeded(_result);
+
+				//$ TODO: this cleanup could probably go in a separate method
 				return;
 			}
-			ros::WallDuration t_diff = ros::WallTime::now() - start;
-			ROS_DEBUG_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
+			
 
 			r.sleep();
 		}
@@ -300,30 +354,19 @@
 
 		mavros_msgs::OverrideRCIn rc_override;
 		int NO_CHANGE = 65535; 	//$ leaves RC channel value unchanged 
-		int RELEASE = 0;			//$ releases RC channel
 
 		ros::WallTime start = ros::WallTime::now();
 
 		while ((_throttle_pwm != pwm) && _nh->ok())
 		{
 			ROS_INFO("Trying to override throttle PWM from %d to %d", _throttle_pwm, pwm);
-			//$ throttle is channel 2 (C++ is zero indexed)
-			if (pwm == 0)	//$ clear previous override values
+
+			//$ throttle is channel 2 (C++ is zero indexed)		
+			for (int i = 0; i < 8; i++)
 			{
-				for (int i = 0; i < 8; i++)
-				{
-					rc_override.channels[i] = RELEASE;
-				}
-				rc_override.channels[2] = pwm; 
+				rc_override.channels[i] = NO_CHANGE;
 			}
-			else			//$ set override for throttle channel
-			{
-				for (int i = 0; i < 8; i++)
-				{
-					rc_override.channels[i] = NO_CHANGE;
-				}
-				rc_override.channels[2] = pwm;
-			}
+			rc_override.channels[2] = pwm; 		//$ set override for throttle channel only
 
 			_rc_pub.publish(rc_override);
 			ros::spinOnce();
@@ -332,6 +375,24 @@
 		}
 		ros::WallDuration t_diff = ros::WallTime::now() - start;
 		ROS_WARN("Throttle override time: %.9f\n", t_diff.toSec());
+	}
+
+	/**
+	 * @brief	clear RC override by releasing all channels
+	 */
+	void clearRCOverride() 
+	{
+		ROS_WARN("Clearing all RC overrides");
+
+		mavros_msgs::OverrideRCIn rc_override;
+		int RELEASE = 0;			//$ releases RC channel
+
+		for (int i = 0; i < 8; i++)
+		{
+			rc_override.channels[i] = RELEASE;
+		}
+
+		_rc_pub.publish(rc_override);
 	}
 
 
@@ -351,33 +412,24 @@
 
 	bool executeTakeoff(const double goal)
 	{
-
 		ros::Rate r(10);
 
-		if (!_armed) 
-		{
-			setMode("STABILIZE");
-			overrideThrottle(1000);
-			r.sleep();
-			executeArm(true);
-			overrideThrottle(1400);
-			setMode("GUIDED");
-
-		}
-
-		 //$ publish feedback
+		//$ publish feedback
 		mavpro::TakeoffFeedback feedback;
 		feedback.altitude = _current_alt;
 		_as->publishFeedback(feedback);
 
-		 //$ check if goal has been reached
-		if (isGoalReached(goal)) 
+		if (!_armed) 
 		{
-			ROS_ERROR("SUCCESS");
-			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
-			// resetState();
-
-			return true;
+			setMode("ACRO");
+			if (_no_transmitter)
+			{
+				overrideThrottle(_throttle_failsafe_cutoff + 10);
+			}
+			r.sleep();
+			executeArm(true);
+			overrideThrottle(1400);
+			setMode("GUIDED");
 		}
 
 		mavros_msgs::CommandTOL srv;
@@ -416,7 +468,20 @@
 			r.sleep();
 		}
 
-		 //$ not done yet
+		//$ check if goal has been reached
+		if (isGoalReached(goal)) 
+		{
+			ROS_ERROR("SUCCESS");
+			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
+			if (!_no_transmitter) //$ if transmitter is used, clear RC overrides
+			{
+				clearRCOverride();
+			}
+			//$ done!
+			return true;
+		}
+
+		//$ not done yet
 		return false;
 	}
 
@@ -434,6 +499,7 @@
 	void radioCallback(const mavros_msgs::RCIn::ConstPtr& radio_msg)
 	{
 		_throttle_pwm = radio_msg->channels[2]; 
+		_ch6_pwm = radio_msg->channels[4];
 	}
 
 	void preemptCb()
