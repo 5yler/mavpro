@@ -88,6 +88,7 @@ namespace fly_to_local {
       double _xy_tolerance, _z_tolerance;
 
       geometry_msgs::PoseStamped _current_position;
+      geometry_msgs::PoseStamped _goal_position;
 
       void resetSetpointToCurrentPosition();
 
@@ -96,7 +97,7 @@ namespace fly_to_local {
       */
       void resetState();
 
-      geometry_msgs::PoseStamped goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg);
+      bool goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg);
 
       void executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal);
 

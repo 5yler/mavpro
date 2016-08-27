@@ -112,7 +112,8 @@ namespace fly_to_local {
 		ROS_WARN("Reset setpoint to current location.");
 	}
 
-	geometry_msgs::PoseStamped FlyToLocalServer::goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg) 
+
+	bool FlyToLocalServer::goalToFCUFrame(const geometry_msgs::PoseStamped& goal_pose_msg) 
 	{
 		std::string fcu_frame = "fcu";
 
@@ -128,17 +129,15 @@ namespace fly_to_local {
 			fcu_pose_msg.pose.position.y = goal_pose_msg.pose.position.y - transform.getOrigin().y();
 			fcu_pose_msg.pose.position.z = goal_pose_msg.pose.position.z - transform.getOrigin().z();
 			fcu_pose_msg.header.stamp = ros::Time::now(); 
+			_goal_position = fcu_pose_msg;
+			return true;
 		}
 		catch(tf::TransformException& ex) 
 		{
 			ROS_WARN("Failed to transform the goal pose from %s into the %s frame: %s",
 				goal_pose_msg.header.frame_id.c_str(), fcu_frame.c_str(), ex.what());
-			
-			ROS_ERROR("THIS IS REALLY BAD");
-			return goal_pose_msg;
+			return false;
 		}
-
-		return fcu_pose_msg;
 	}
 
 	void FlyToLocalServer::poseCb(const geometry_msgs::PoseStampedConstPtr& local_pose)
@@ -150,10 +149,16 @@ namespace fly_to_local {
 
 	void FlyToLocalServer::executeCb(const mavpro::FlyToLocalGoalConstPtr& fly_to_local_goal) 
 	{
-		geometry_msgs::PoseStamped goal = goalToFCUFrame(fly_to_local_goal->target);
+		if (!goalToFCUFrame(fly_to_local_goal->target))
+		{
+			ROS_ERROR("Cannot fly to invalid frame_id, rejecting goal");
+			_as->setAborted(_result, "Invalid goal frame_id");
+			return;
 
-		_current_goal_pub.publish(goal);
-		ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.header.frame_id.c_str());
+		}
+
+		_current_goal_pub.publish(_goal_position);
+		ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", _goal_position.pose.position.x, _goal_position.pose.position.y, _goal_position.pose.position.z, _goal_position.header.frame_id.c_str());
 
 		ros::Rate r(_controller_frequency);
 
@@ -168,11 +173,16 @@ namespace fly_to_local {
 					// if we're active and a new goal is available, we'll accept it
 					mavpro::FlyToLocalGoal new_goal = *_as->acceptNewGoal();
 
-					goal = goalToFCUFrame(new_goal.target);
+					if (!goalToFCUFrame(new_goal.target))
+					{
+						ROS_ERROR("Cannot fly to invalid frame_id, rejecting goal");
+						_as->setAborted(_result, "Invalid goal frame_id");
+						return;
 
+					}
 					// publish current goal
-					ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.header.frame_id.c_str());
-					_current_goal_pub.publish(goal);
+					ROS_INFO("fly_to_local has received a goal of x: %.2f, y: %.2f, z: %.2f (frame id: %s)", _goal_position.pose.position.x, _goal_position.pose.position.y, _goal_position.pose.position.z, _goal_position.header.frame_id.c_str());
+					_current_goal_pub.publish(_goal_position);
 				}
 				else 
 				{ // if we've been preempted explicitly, shut things down
@@ -187,29 +197,30 @@ namespace fly_to_local {
 				}
 			}
 
-			// we also want to check if we've changed global frames because we need to transform our goal pose
-			if (goal.header.frame_id != "fcu") 
-			{
-				goal = goalToFCUFrame(goal);
-
-				//publish the goal point to the visualizer
-				ROS_DEBUG_NAMED("fly_to_local","The global frame for fly_to_local has changed, new frame: %s, new goal position x: %.2f, y: %.2f", goal.header.frame_id.c_str(), goal.pose.position.x, goal.pose.position.y);
-				_current_goal_pub.publish(goal);
-			}
-
 			//for timing that gives real time even in simulation
 			ros::WallTime start = ros::WallTime::now();
 
+
+			// we also want to check if we've changed global frames because we need to transform our goal pose
+			// if (_goal_position.header.frame_id != "fcu") 
+			// {
+			// 	goal = goalToFCUFrame(goal);
+
+			// 	//publish the goal point to the visualizer
+			// 	ROS_DEBUG_NAMED("fly_to_local","The global frame for fly_to_local has changed, new frame: %s, new goal position x: %.2f, y: %.2f", _goal_position.header.frame_id.c_str(), _goal_position.pose.position.x, _goal_position.pose.position.y);
+			// 	_current_goal_pub.publish(goal);
+			// }
+
+
 			//the real work on pursuing a goal is done here
-			bool done = executeCycle(goal);
+			bool done = executeCycle(_goal_position);
 
 			if (done)
 			{
+				ros::WallDuration t_diff = ros::WallTime::now() - start;
+				ROS_DEBUG_NAMED("fly_to_local","Full control cycle time: %.9f\n", t_diff.toSec());
 				return;
 			}
-
-			ros::WallDuration t_diff = ros::WallTime::now() - start;
-			ROS_DEBUG_NAMED("fly_to_local","Full control cycle time: %.9f\n", t_diff.toSec());
 
 			r.sleep(); 
 		}
@@ -249,7 +260,7 @@ namespace fly_to_local {
 	{
 
 		//$ the goal should always be in fcu frame, double check
-		assert(goal.header.frame_id == "fcu");
+		assert(_goal_position.header.frame_id == "fcu");
 
 		//$ publish setpoint to mavros setpoint_position which will handle the controls
 		_setpoint_pub.publish(goal);
