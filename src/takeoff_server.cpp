@@ -289,6 +289,18 @@
 
 		while (n.ok())
 		{
+			ros::WallDuration t_diff = ros::WallTime::now() - start;
+
+			if (t_diff.toSec() > 180.0)
+			{
+				ROS_ERROR("THIS IS TAKING TOO LONG, SO I AM JUST GOING TO LAND INSTEAD.");
+				setMode("LAND");
+				clearRCOverride();
+				_as->setAborted(_result, "Aborting on the goal because an attempt at manual control was initiated");
+				//$ return from execute if manual control was initiated
+				return;
+			}
+
 
 			if (_as->isPreemptRequested())
 			{
