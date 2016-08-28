@@ -9,7 +9,9 @@
 	<arg name="controller_frequency" default="0.5" />
 
 	<!-- takeoff parameter -->
-	<!-- <arg name="takeoff_z_tolerance" default="0.5" /> -->
+	<arg name="takeoff_z_tolerance" default="0.5" />
+	<arg name="takeoff_timeout" default="180.0" />
+
 	<!-- fly_to_local parameters -->
 	<arg name="xy_tolerance" default="2.0" />
 	<arg name="z_tolerance" default="2.0" />
@@ -20,7 +22,8 @@
 	<node pkg="mavpro" type="takeoff_server" name="takeoff_server" output="$(arg log_output)">
 		<param name="no_transmitter" value="$(arg no_transmitter)" />
 		<param name="mavros_ns" value="$(arg mavros_ns)" />
-		<!-- <param name="z_tolerance" value="$(arg takeoff_z_tolerance)" /> -->
+		<param name="z_tolerance" value="$(arg takeoff_z_tolerance)" />
+		<param name="timeout" value="$(arg takeoff_timeout)" />		
 	</node>
 
     <!-- FlyToLocal action server -->

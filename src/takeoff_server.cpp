@@ -98,9 +98,11 @@
  		_rc_pub = _nh->advertise<mavros_msgs::OverrideRCIn>("rc/override", 1);
 
 		//$ get some parameters
+ 		_private_nh->param("feedback_frequency", _feedback_frequency, 1.0);
  		_private_nh->param("controller_frequency", _controller_frequency, 10.0);
  		_private_nh->param("z_tolerance", _z_tolerance, 1.0);
  		_private_nh->param("no_transmitter", _no_transmitter, false);
+ 		_private_nh->param("timeout", _takeoff_timeout, 180);	//$ timeout in seconds after which goal is aborted
 
  		ROS_WARN("Done initializing takeoff_server.");
  		_as->start();
@@ -143,10 +145,13 @@
 
  	mavpro::TakeoffResult _result;
 
- 	double _controller_frequency;
+ 	double _feedback_frequency;
  	double _z_tolerance;
 	bool _no_transmitter;	
+	int _takeoff_timeout;	
+
 	int _throttle_failsafe_cutoff;
+ 	double _controller_frequency;
 
  	double _current_alt;
  	std::string _mode;
@@ -223,7 +228,7 @@
 
 		bool mode_changed = false;
 
-		ros::Rate r(10);
+		ros::Rate r(_controller_frequency);
 		int num_calls = 0;
 
 		while ((!mode_changed) && _nh->ok())
@@ -291,8 +296,9 @@
 		{
 			ros::WallDuration t_diff = ros::WallTime::now() - start;
 
-			if (t_diff.toSec() > 180.0)
+			if (t_diff.toSec() > _takeoff_timeout)
 			{
+				ROS_WARN("It has been %4.1f seconds since the takeoff goal was accepted...", t_diff.toSec());
 				ROS_ERROR("THIS IS TAKING TOO LONG, SO I AM JUST GOING TO LAND INSTEAD.");
 				setMode("LAND");
 				clearRCOverride();
@@ -314,8 +320,8 @@
 
 			if (_ch6_pwm != _ch6_pwm_init)
 			{
-				ROS_ERROR("detected manual activity on channel 6 switch, aborting takeoff");
-				setMode("STABILIZE");
+				ROS_ERROR("Detected manual activity on channel 6 switch, aborting takeoff!");
+				setMode("LAND");
 				clearRCOverride();
 				_as->setAborted(_result, "Aborting on the goal because an attempt at manual control was initiated");
 				//$ return from execute if manual control was initiated
@@ -331,15 +337,11 @@
 				mavpro::TakeoffFeedback feedback;
 				feedback.altitude = _current_alt;
 				_as->publishFeedback(feedback);
-				r.sleep();
-
-				ROS_INFO("Checking if goal reached");
 			
 				//$ check if goal has been reached
 				done = isGoalReached(goal->altitude);
 			}
 
-			//$ done!
 
 			if (done)
 			{
@@ -348,6 +350,7 @@
 				ROS_INFO_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
 				ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
 				clearRCOverride();
+				//$ done!
 				_result.success = true;
 				_as->setSucceeded(_result);
 				return;
@@ -360,6 +363,63 @@
 		_result.success = false;
 		_as->setAborted(_result, "Aborting on the goal because the node has been killed");
 		return;
+	}
+
+
+	bool executeTakeoff(const double goal)
+	{
+		ros::Rate r(_controller_frequency);
+
+		if (!_armed) 
+		{
+			setMode("STABILIZE");
+			overrideThrottle(_throttle_failsafe_cutoff + 10);
+			r.sleep();
+			executeArm(true);
+			overrideThrottle(1400);
+			setMode("GUIDED");
+			
+
+			mavros_msgs::CommandTOL srv;
+
+			ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
+
+			srv.request.min_pitch = 5;
+			srv.request.yaw = 0;
+			srv.request.latitude = 0;
+			srv.request.longitude = 0;
+			srv.request.altitude = goal;
+
+			bool takeoff_call_success = false;
+
+			int num_calls = 0;
+
+			while ((!takeoff_call_success) && _nh->ok())
+			{
+				
+				num_calls++;
+				ROS_INFO("Calling mavros takeoff service [%d/5]", num_calls);
+
+				if (takeoff_client.call(srv))
+				{
+					ROS_WARN("Called mavros takeoff service");
+					takeoff_call_success = true;
+				}
+				else
+				{
+					ROS_ERROR("Failed to call mavros takeoff service [%d/5]", num_calls);
+				}
+
+				if (num_calls > 5)
+				{
+					ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
+					// _as->setAborted(_result);
+					return false;
+				}
+				// r.sleep();
+			}
+		}
+		return true;
 	}
 
 	bool executeArm(bool arming_value) 
@@ -379,7 +439,8 @@
 			num_calls++;
 			if (arming_client.call(srv))
 			{
-				ROS_WARN("Armed!");
+				if (arming_value == true) ROS_WARN("Armed!");
+				else ROS_WARN("Disarmed!");
 				arm_status_changed = true;
 			}
 			else
@@ -464,64 +525,6 @@
 		{
 			return true;
 		}
-	}
-
-	bool executeTakeoff(const double goal)
-	{
-		ros::Rate r(10);
-
-
-		if (!_armed) 
-		{
-			setMode("STABILIZE");
-			overrideThrottle(_throttle_failsafe_cutoff + 10);
-			r.sleep();
-			executeArm(true);
-			overrideThrottle(1400);
-			setMode("GUIDED");
-			
-
-			mavros_msgs::CommandTOL srv;
-
-			ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
-
-			srv.request.min_pitch = 5;
-			srv.request.yaw = 0;
-			srv.request.latitude = 0;
-			srv.request.longitude = 0;
-			srv.request.altitude = goal;
-
-			bool takeoff_call_success = false;
-
-			int num_calls = 0;
-
-			while ((!takeoff_call_success) && _nh->ok())
-			{
-				
-				num_calls++;
-				ROS_INFO("Calling mavros takeoff service [%d/5]", num_calls);
-
-				if (takeoff_client.call(srv))
-				{
-					ROS_WARN("Called mavros takeoff service");
-					takeoff_call_success = true;
-				}
-				else
-				{
-					ROS_ERROR("Failed to call mavros takeoff service [%d/5]", num_calls);
-				}
-
-				if (num_calls > 5)
-				{
-					ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
-					// _as->setAborted(_result);
-					return false;
-				}
-				// r.sleep();
-			}
-		}
-		return true;
-
 	}
 
 	void altCallback(const std_msgs::Float64::ConstPtr& rel_alt_msg)
