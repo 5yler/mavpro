@@ -108,6 +108,11 @@
 
  	~TakeoffServer()
  	{
+ 		if (!_no_transmitter) 
+		{
+			clearRCOverride(); //$ if transmitter is used, clear RC overrides
+		}
+
  		if (_as != NULL)
  		{
  			delete _as;
@@ -218,11 +223,15 @@
 
 		bool mode_changed = false;
 
-		ros::Rate r(_controller_frequency);
+		ros::Rate r(10);
 		int num_calls = 0;
 
 		while ((!mode_changed) && _nh->ok())
 		{
+			num_calls++;
+
+			ROS_INFO("Attempting to switch to %s mode [%d/20]", mode.c_str(), num_calls);
+
 			if (mode_client.call(srv))
 			{
 				if (_mode == mode)
@@ -230,11 +239,6 @@
 					mode_changed = true;
 					ROS_WARN("Changed to %s mode", mode.c_str());
 				}
-			}
-			else
-			{
-				ROS_ERROR_THROTTLE(10, "Failed to switch to %s mode", mode.c_str());
-				num_calls += 1;
 			}
 
 			r.sleep();
@@ -277,6 +281,8 @@
 			return;
 		}
 
+		//$ disarm UAV first
+		executeArm(false);
 
 		//$ keep track of channel 6 PWM value, so we can abort if it changes during takeoff attempt
 		_ch6_pwm_init = _ch6_pwm;
@@ -304,14 +310,32 @@
 				return;
 			}
 
+			bool done = false;
+
 			//$ actually try to take off
-			bool done = executeTakeoff(goal->altitude);
+			if (executeTakeoff(goal->altitude))
+			{
+				//$ publish feedback
+				mavpro::TakeoffFeedback feedback;
+				feedback.altitude = _current_alt;
+				_as->publishFeedback(feedback);
+				r.sleep();
+
+				ROS_INFO("Checking if goal reached");
+			
+				//$ check if goal has been reached
+				done = isGoalReached(goal->altitude);
+			}
+
+			//$ done!
 
 			if (done)
 			{
 				ros::WallDuration t_diff = ros::WallTime::now() - start;
-				ROS_DEBUG_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
-
+				ROS_ERROR("SUCCESS!");
+				ROS_INFO_NAMED("takeoff_server","Takeoff time: %.9f\n", t_diff.toSec());
+				ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
+				clearRCOverride();
 				_result.success = true;
 				_as->setSucceeded(_result);
 				return;
@@ -340,16 +364,15 @@
 		int num_calls = 0;
 		while ((!arm_status_changed) && _nh->ok())
 		{
-
+			num_calls++;
 			if (arming_client.call(srv))
 			{
-				ROS_WARN("Arming status changed");
+				ROS_WARN("Armed!");
 				arm_status_changed = true;
 			}
 			else
 			{
-				ROS_ERROR("Failed to arm");
-				num_calls += 1;
+				ROS_ERROR("Failed to arm [%d/20]", num_calls);
 			}
 
 			if (num_calls > 20)
@@ -375,9 +398,12 @@
 
 		ros::WallTime start = ros::WallTime::now();
 
+		int num_calls = 0;
+
 		while ((_throttle_pwm != pwm) && _nh->ok())
 		{
-			ROS_INFO("Trying to override throttle PWM from %d to %d", _throttle_pwm, pwm);
+			num_calls++;
+			ROS_INFO("Trying to override throttle PWM from %d to %d [%d]", _throttle_pwm, pwm, num_calls);
 
 			//$ throttle is channel 2 (C++ is zero indexed)		
 			for (int i = 0; i < 8; i++)
@@ -432,70 +458,58 @@
 	{
 		ros::Rate r(10);
 
-		//$ publish feedback
-		mavpro::TakeoffFeedback feedback;
-		feedback.altitude = _current_alt;
-		_as->publishFeedback(feedback);
 
 		if (!_armed) 
 		{
-			setMode("ACRO");
+			setMode("STABILIZE");
 			overrideThrottle(_throttle_failsafe_cutoff + 10);
 			r.sleep();
 			executeArm(true);
 			overrideThrottle(1400);
 			setMode("GUIDED");
-		}
+			
 
-		mavros_msgs::CommandTOL srv;
+			mavros_msgs::CommandTOL srv;
 
-		ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
+			ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
 
-		srv.request.min_pitch = 5;
-		srv.request.yaw = 0;
-		srv.request.latitude = 0;
-		srv.request.longitude = 0;
-		srv.request.altitude = goal;
+			srv.request.min_pitch = 5;
+			srv.request.yaw = 0;
+			srv.request.latitude = 0;
+			srv.request.longitude = 0;
+			srv.request.altitude = goal;
 
-		bool takeoff_call_success = false;
+			bool takeoff_call_success = false;
 
-		int num_calls = 0;
+			int num_calls = 0;
 
-		while ((!takeoff_call_success) && _nh->ok())
-		{
-
-			if (takeoff_client.call(srv))
+			while ((!takeoff_call_success) && _nh->ok())
 			{
-				ROS_WARN("Called mavros takeoff service");
-				takeoff_call_success = true;
-			}
-			else
-			{
-				ROS_ERROR_THROTTLE(20, "Failed to call mavros takeoff service");
-				num_calls += 1;
-			}
+				
+				num_calls++;
+				ROS_INFO("Calling mavros takeoff service [%d/5]", num_calls);
 
-			if (num_calls > 5)
-			{
-				ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
-				// _as->setAborted(_result);
-				return false;
+				if (takeoff_client.call(srv))
+				{
+					ROS_WARN("Called mavros takeoff service");
+					takeoff_call_success = true;
+				}
+				else
+				{
+					ROS_ERROR("Failed to call mavros takeoff service [%d/5]", num_calls);
+				}
+
+				if (num_calls > 5)
+				{
+					ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
+					// _as->setAborted(_result);
+					return false;
+				}
+				// r.sleep();
 			}
-			r.sleep();
 		}
+		return true;
 
-		//$ check if goal has been reached
-		if (isGoalReached(goal)) 
-		{
-			ROS_ERROR("SUCCESS!");
-			ROS_DEBUG_NAMED("takeoff_server", "Goal reached!");
-			clearRCOverride();
-			//$ done!
-			return true;
-		}
-
-		//$ not done yet
-		return false;
 	}
 
 	void altCallback(const std_msgs::Float64::ConstPtr& rel_alt_msg)
@@ -517,7 +531,7 @@
 
 	void preemptCb()
 	{
-		ROS_DEBUG_NAMED("takeoff_server", "Preempted!");
+		ROS_ERROR_NAMED("takeoff_server", "Preempted!");
 		 // set the action state to preempted
 		_as->setPreempted();
 	}
