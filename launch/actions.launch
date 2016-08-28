@@ -19,13 +19,14 @@
 	<arg name="mavros_ns" default="mavros" /> <!-- mavros node namespace -->
 
     <!-- Takeoff action server -->
-	<node pkg="mavpro" type="takeoff_server" name="takeoff_server" output="$(arg log_output)">
+<!-- <node pkg="mavpro" type="takeoff_server" name="takeoff_server" output="$(arg log_output)"> --> <!-- C++ takeoff_server -->
+	<node pkg="mavpro" type="takeoff_server.py" name="takeoff_server" output="$(arg log_output)" > <!-- python takeoff_server -->
 		<param name="no_transmitter" value="$(arg no_transmitter)" />
 		<param name="mavros_ns" value="$(arg mavros_ns)" />
 		<param name="z_tolerance" value="$(arg takeoff_z_tolerance)" />
 		<param name="timeout" value="$(arg takeoff_timeout)" />	
 		<param name="disable_param_checks" value="$(arg disable_param_checks)" />	
-	</node>
+	</node> 
 
     <!-- FlyToLocal action server -->
 	<node pkg="mavpro" type="fly_to_local_server" name="fly_to_local_server" output="$(arg log_output)">
