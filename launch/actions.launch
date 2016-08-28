@@ -11,7 +11,7 @@
 	<!-- takeoff parameter -->
 	<arg name="takeoff_z_tolerance" default="0.5" />
 	<arg name="takeoff_timeout" default="180.0" />
-
+	<arg name="disable_param_checks" default="false" doc="disables checking parameters from FCU, set to true of you want to test without mavros in the loop" />
 	<!-- fly_to_local parameters -->
 	<arg name="xy_tolerance" default="2.0" />
 	<arg name="z_tolerance" default="2.0" />
@@ -23,7 +23,8 @@
 		<param name="no_transmitter" value="$(arg no_transmitter)" />
 		<param name="mavros_ns" value="$(arg mavros_ns)" />
 		<param name="z_tolerance" value="$(arg takeoff_z_tolerance)" />
-		<param name="timeout" value="$(arg takeoff_timeout)" />		
+		<param name="timeout" value="$(arg takeoff_timeout)" />	
+		<param name="disable_param_checks" value="$(arg disable_param_checks)" />	
 	</node>
 
     <!-- FlyToLocal action server -->

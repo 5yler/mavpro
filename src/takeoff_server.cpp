@@ -103,6 +103,7 @@
  		_private_nh->param("z_tolerance", _z_tolerance, 1.0);
  		_private_nh->param("no_transmitter", _no_transmitter, false);
  		_private_nh->param("timeout", _takeoff_timeout, 180);	//$ timeout in seconds after which goal is aborted
+ 		_private_nh->param("disable_param_checks",_disable_param_checks, false);	//$ set to true of you want to test without mavros in the loop
 
  		ROS_WARN("Done initializing takeoff_server.");
  		_as->start();
@@ -149,6 +150,7 @@
  	double _z_tolerance;
 	bool _no_transmitter;	
 	int _takeoff_timeout;	
+	bool _disable_param_checks;	
 
 	int _throttle_failsafe_cutoff;
  	double _controller_frequency;
@@ -162,6 +164,8 @@
 
 	bool checkGCSID() 
 	{
+		if (_disable_param_checks) return true;
+
 		int mavros_sys_id, uav_gcs_id;
 
 		_nh->getParam("system_id", mavros_sys_id);
@@ -202,6 +206,8 @@
 	 */
 	bool getThrottleFailsafeCutoff()
 	{
+		if (_disable_param_checks) return true;
+
 		ros::ServiceClient param_client = _nh->serviceClient<mavros_msgs::ParamGet>("param/get");
 
 		mavros_msgs::ParamGet srv;
@@ -337,11 +343,10 @@
 				mavpro::TakeoffFeedback feedback;
 				feedback.altitude = _current_alt;
 				_as->publishFeedback(feedback);
-			
-				//$ check if goal has been reached
-				done = isGoalReached(goal->altitude);
 			}
 
+			//$ check if goal has been reached
+			done = isGoalReached(goal->altitude);
 
 			if (done)
 			{
@@ -489,6 +494,8 @@
 			ros::spinOnce();
 
 			r.sleep();
+
+			if (num_calls > 20) break;
 		}
 		ros::WallDuration t_diff = ros::WallTime::now() - start;
 		ROS_WARN("Throttle override time: %.9f\n", t_diff.toSec());
