@@ -49,7 +49,7 @@ class TakeoffServer(object):
 
 		self.mavros_ns = rospy.get_param('~mavros_ns', 'mavros')
 
-		rospy.logwarn("Starting takeoff_server...")
+		rospy.logerr("Starting python takeoff_server...")
 
 		# relative altitude subscriber
 		self.alt_sub = rospy.Subscriber(self.mavros_ns+'/global_position/rel_alt', Float64, self.rel_alt_callback)
@@ -144,7 +144,7 @@ class TakeoffServer(object):
 				rospy.logwarn("Takeoff altitude reached!")
 				self.override_throttle(0)			# clear RC override, return full manual control
 				self.request_mode('GUIDED')
-				at_goal = True
+				self.at_goal = True
 			
 		return True
 
@@ -154,14 +154,20 @@ class TakeoffServer(object):
 
 		rc_override = OverrideRCIn()
 		NO_CHANGE = 65535 	# leaves RC channel value unchanged 
+
+		# set override for throttle channel only
+		rc_override.channels = [NO_CHANGE, NO_CHANGE, pwm, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE]
+
+		self.rc_pub.publish(rc_override)
+
+	def clear_rc_override(self):
+		rospy.logwarn("Clearing all RC overrides!")
+
+		rc_override = OverrideRCIn()
 		RELEASE = 0			# releases RC channel
 
-		# throttle is channel 3
-		if pwm == 0:	# clear previous override values
-			rc_override.channels = [RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE]
-			# TODO: 
-		else:			# set override for throttle channel
-			rc_override.channels = [NO_CHANGE, NO_CHANGE, pwm, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE]
+		# clear previous override values
+		rc_override.channels = [RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE, RELEASE]
 
 		self.rc_pub.publish(rc_override)
 
