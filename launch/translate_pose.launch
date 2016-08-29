@@ -11,17 +11,17 @@
 	<arg name="repub_frame_id" default="map" />
 
 	<!-- transform between the desired frames frame -->
-	<arg name="translate_pose_transform" value="10 10 0 0 0 0 1 $(arg frame_id) $(arg repub_frame_id) 100" />
+	<!-- <arg name="translate_pose_transform" value="10 10 0 0 0 0 1 $(arg frame_id) $(arg repub_frame_id) 100" /> -->
 
     <!-- go_to_global_target_client node -->
 	<node pkg="mavpro" type="translate_pose" name="translate_pose" output="screen">
-		<rosparam param="topic" subst_value="True">$(arg topic)</rosparam>
-		<rosparam param="frame_id" subst_value="True">$(arg frame_id)</rosparam>
-		<rosparam param="repub_topic" subst_value="True">$(arg repub_topic)</rosparam>
-		<rosparam param="repub_frame_id" subst_value="True">$(arg repub_frame_id)</rosparam>
+		<param name="topic" value="$(arg topic)" />
+		<param name="frame_id" value="$(arg frame_id)" />
+		<param name="repub_topic" value="$(arg repub_topic)" />
+		<param name="repub_frame_id" value="$(arg repub_frame_id)" />
 	</node>
 
-  <node pkg="tf" type="static_transform_publisher" name="map_fcu_tf_broadcaster" args="$(arg translate_pose_transform)" output="screen" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_fcu_tf_broadcaster" args="$(arg translate_pose_transform)" output="screen" /> -->
 
 
 </launch>
