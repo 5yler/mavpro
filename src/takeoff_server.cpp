@@ -71,9 +71,7 @@
  {
  public:
  	TakeoffServer() :
- 	_nh(NULL),
- 	_private_nh(NULL),
- 	_as(NULL)
+ 	_nh(NULL), _private_nh(NULL), _as(NULL), _armed(false), _current_alt(0.0)
  	{
 		_private_nh = new ros::NodeHandle("~");
 		_private_nh->param<std::string>("mavros_ns", _ns, "mavros");
