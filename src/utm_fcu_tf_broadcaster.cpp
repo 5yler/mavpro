@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
   int rate;
   std::string frame_id;
 
-  n->param("rated", rate, 100);
+  n->param("rate", rate, 100);
 
   ros::Rate r(rate);
 
