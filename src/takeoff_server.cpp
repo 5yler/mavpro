@@ -56,6 +56,7 @@
 #include <mavros_msgs/State.h>
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/PoseStamped.h>
 
  enum OperationalMode 
  {
@@ -92,8 +93,14 @@
 
  		_rc_sub = _nh->subscribe<mavros_msgs::RCIn>("rc/in", 1, &TakeoffServer::radioCallback, this);
 
-
  		_rc_pub = _nh->advertise<mavros_msgs::OverrideRCIn>("rc/override", 1);
+
+ 		//# for comanding the UAV
+		_setpoint_pub = _nh->advertise<geometry_msgs::PoseStamped>("setpoint_position/local", 1);
+
+		//# for keeping track of current pose
+		_position_sub = _nh->subscribe<geometry_msgs::PoseStamped>("local_position/pose", 1, &TakeoffServer::poseCallback, this);
+
 
 		//$ get some parameters
  		_private_nh->param("feedback_frequency", _feedback_frequency, 1.0);
@@ -138,7 +145,10 @@
  	ros::Subscriber _alt_sub;
  	ros::Subscriber _state_sub;
  	ros::Subscriber _rc_sub;
+ 	ros::Subscriber _position_sub;
+
  	ros::Publisher _rc_pub;
+    ros::Publisher _setpoint_pub;
 
  	TakeoffActionServer* _as;
 
@@ -159,6 +169,7 @@
 	int _throttle_pwm;
 	int _ch6_pwm;		//$ current channel 6 PWM value
 	int _ch6_pwm_init;	//$ channel 6 PWM value when goal accepted
+    geometry_msgs::PoseStamped _current_position;
 
 	bool checkGCSID() 
 	{
@@ -368,6 +379,15 @@
 		return;
 	}
 
+	geometry_msgs::PoseStamped generateTakeoffTargetPose(const double goal)
+	{
+		geometry_msgs::PoseStamped target;
+		target.header = _current_position.header;
+		target.pose.position.x = _current_position.pose.position.x;
+		target.pose.position.y = _current_position.pose.position.y;
+		target.pose.position.z = _current_position.pose.position.z + goal;
+		return target;
+	}
 
 	bool executeTakeoff(const double goal)
 	{
@@ -382,7 +402,10 @@
 			overrideThrottle(1400);
 			setMode("GUIDED");
 			
+			geometry_msgs::PoseStamped target = generateTakeoffTargetPose(goal);
+			_setpoint_pub.publish(target);
 
+			/*
 			mavros_msgs::CommandTOL srv;
 
 			ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
@@ -420,7 +443,7 @@
 					return false;
 				}
 				// r.sleep();
-			}
+			} */
 		}
 		return true;
 	}
@@ -541,6 +564,12 @@
 	{
 		_armed = state_msg->armed;
 		_mode = state_msg->mode;
+	}
+
+	void poseCallback(const geometry_msgs::PoseStampedConstPtr& local_pose)
+	{
+		_current_position.header = local_pose->header;
+		_current_position.pose = local_pose->pose;
 	}
 
 	void radioCallback(const mavros_msgs::RCIn::ConstPtr& radio_msg)
