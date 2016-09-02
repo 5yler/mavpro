@@ -217,7 +217,7 @@ class TakeoffServer(object):
 		rospy.wait_for_service(self.mavros_ns+'/mission/push')
 		set_takeoff_mission = rospy.ServiceProxy(self.mavros_ns+'/mission/push', WaypointPush)
 
-		waypoints = self.create_takeoff_mission(self.takeoff_alt + 2) # make it 2m higher so it will overreach
+		waypoints = self.create_takeoff_mission(self.takeoff_alt + 0.5) # make it slightly higher so it will overreach
 
 		try:
 			response = set_takeoff_mission(waypoints)
