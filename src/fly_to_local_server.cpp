@@ -77,7 +77,7 @@ namespace fly_to_local {
 		_private_nh->param("xy_tolerance", _xy_tolerance, 2.0);
 		_private_nh->param("z_tolerance", _z_tolerance, 2.0);
 
-		ROS_WARN("Done initializing fly_to_local_server. Ready to handle FlyToLocalServer.action");
+		ROS_WARN("Done initializing fly_to_local_server. Ready to fly!");
 
 		//$ start the action server
 		_as->start();

@@ -47,7 +47,6 @@
 //$ mavros services
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/ParamGet.h>
-#include <mavros_msgs/CommandTOL.h>		//$ takeoff/landing command
 #include <mavros_msgs/CommandBool.h> 	//$ arming command
 
 //$ message types
@@ -404,46 +403,6 @@
 			
 			geometry_msgs::PoseStamped target = generateTakeoffTargetPose(goal);
 			_setpoint_pub.publish(target);
-
-			/*
-			mavros_msgs::CommandTOL srv;
-
-			ros::ServiceClient takeoff_client = _nh->serviceClient<mavros_msgs::CommandTOL>("cmd/takeoff");
-
-			srv.request.min_pitch = 5;
-			srv.request.yaw = 0;
-			srv.request.latitude = 0;
-			srv.request.longitude = 0;
-			srv.request.altitude = goal;
-
-			bool takeoff_call_success = false;
-
-			int num_calls = 0;
-
-			while ((!takeoff_call_success) && _nh->ok())
-			{
-				
-				num_calls++;
-				ROS_INFO("Calling mavros takeoff service [%d/5]", num_calls);
-
-				if (takeoff_client.call(srv))
-				{
-					ROS_WARN("Called mavros takeoff service");
-					takeoff_call_success = true;
-				}
-				else
-				{
-					ROS_ERROR("Failed to call mavros takeoff service [%d/5]", num_calls);
-				}
-
-				if (num_calls > 5)
-				{
-					ROS_ERROR("Tried to call mavros takeoff service 5 times, aborting.");
-					// _as->setAborted(_result);
-					return false;
-				}
-				// r.sleep();
-			} */
 		}
 		return true;
 	}
@@ -604,7 +563,7 @@
 
  	ros::init(argc, argv, "takeoff_server");
 
- 	TakeoffServer land;
+ 	TakeoffServer takeoff;
 
  	ros::spin();
  	return 0;
